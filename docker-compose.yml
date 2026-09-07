@@ -1,0 +1,116 @@
+# ============================================================
+# SOUL x TIME — Local Development Services
+# ============================================================
+# Usage:
+#   Start all:    docker-compose up -d
+#   Stop all:     docker-compose down
+#   Start only DB: docker-compose up -d postgres
+#   View logs:    docker-compose logs -f postgres
+# ============================================================
+
+services:
+  # ----------------------------------------------------------
+  # PostgreSQL — Primary database
+  # ----------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: soulxtime-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: soulxtime
+      POSTGRES_USER: soulxtime_user
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-local_dev_password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U soulxtime_user -d soulxtime"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------
+  # pgAdmin — Optional DB management UI
+  # Access at http://localhost:5050
+  # Login: admin@soulxtime.com / admin
+  # ----------------------------------------------------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: soulxtime-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@soulxtime.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    profiles:
+      - tools
+
+  # ----------------------------------------------------------
+  # Backend (optional — use ./mvnw for faster dev iteration)
+  # ----------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: soulxtime-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DATABASE_URL: jdbc:postgresql://postgres:5432/soulxtime
+      DATABASE_USERNAME: soulxtime_user
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-local_dev_password}
+      JWT_SECRET: ${JWT_SECRET:-docker_dev_secret_change_in_production_256bit}
+      JWT_ACCESS_EXPIRY_MS: ${JWT_ACCESS_EXPIRY_MS:-900000}
+      JWT_REFRESH_EXPIRY_MS: ${JWT_REFRESH_EXPIRY_MS:-604800000}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      WHATSAPP_MODE: ${WHATSAPP_MODE:-LINK}
+      WHATSAPP_OWNER_NUMBER: ${WHATSAPP_OWNER_NUMBER:-}
+      BILL_NUMBER_PREFIX: ${BILL_NUMBER_PREFIX:-ST}
+      ADMIN_OWNER_NAME: ${ADMIN_OWNER_NAME:-Soul x Time Admin}
+      ADMIN_OWNER_PHONE: ${ADMIN_OWNER_PHONE:-}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - full
+
+  # ----------------------------------------------------------
+  # Frontend (optional — use npm run dev for hot reload)
+  # ----------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    container_name: soulxtime-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://backend:8080}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    profiles:
+      - full
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  default:
+    name: soulxtime-network
