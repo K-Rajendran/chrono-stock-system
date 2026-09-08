@@ -1,11 +1,11 @@
 'use client';
-
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store/authStore';
 import { billService, adminService } from '@/services';
-import { LoadingSpinner, StatusBadge, Button } from '@/components/ui';
+import { LoadingSpinner } from '@/components/ui';
+import { Button } from '@/components/ui/Button';
 import { formatCurrency, formatDateTime, paymentStatusLabel, paymentStatusColor, billStatusLabel, billStatusColor } from '@/utils';
 import { Printer, MessageCircle, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -18,160 +18,144 @@ export default function BillDetailPage({ params }: Props) {
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
 
-  useEffect(() => {
-    if (!isAuthenticated) router.push('/login');
-  }, [isAuthenticated, router]);
+  useEffect(() => { if (!isAuthenticated) router.push('/login'); }, [isAuthenticated, router]);
 
-  const fetchBill = user?.role === 'ADMIN'
+  const fetchFn = user?.role === 'ADMIN'
     ? () => adminService.getBill(billId)
     : () => billService.getById(billId);
 
   const { data: bill, isLoading } = useQuery({
-    queryKey: ['bill', billId],
-    queryFn: fetchBill,
-    enabled: isAuthenticated && !!billId,
+    queryKey: ['bill', billId], queryFn: fetchFn, enabled: isAuthenticated && !!billId,
   });
 
-  const whatsappMutation = useMutation({
+  const waMut = useMutation({
     mutationFn: () => adminService.sendBillWhatsApp(billId),
-    onSuccess: (data) => {
-      if (data.whatsappLink) window.open(data.whatsappLink, '_blank');
-      toast.success('WhatsApp message generated');
-    },
+    onSuccess: d => { if (d.whatsappLink) window.open(d.whatsappLink, '_blank'); toast.success('WhatsApp message generated'); },
     onError: () => toast.error('Could not generate WhatsApp message'),
   });
 
   if (!isAuthenticated) return null;
-  if (isLoading) return <div className="container-wide py-20"><LoadingSpinner size="lg" /></div>;
-  if (!bill) return <div className="container-wide py-20 text-center text-brand-gray">Bill not found.</div>;
+  if (isLoading) return <div style={{ background: '#080808', minHeight: '100vh', paddingTop: '68px' }}><LoadingSpinner size="lg" /></div>;
+  if (!bill) return <div style={{ background: '#080808', minHeight: '100vh', paddingTop: '68px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#5A5A55' }}>Bill not found.</p></div>;
 
   return (
-    <div className="container-wide py-10 max-w-3xl">
-      {/* Nav */}
-      <div className="flex items-center justify-between mb-8 no-print">
-        <Link href="/account" className="inline-flex items-center gap-2 text-sm text-brand-gray hover:text-brand-white transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back
-        </Link>
-        <div className="flex gap-3">
-          <Button variant="glass" size="sm" onClick={() => window.print()} className="gap-2">
-            <Printer className="w-4 h-4" /> Print
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => whatsappMutation.mutate()}
-            loading={whatsappMutation.isPending} className="gap-2">
-            <MessageCircle className="w-4 h-4" /> Share
-          </Button>
-        </div>
-      </div>
+    <div style={{ background: '#080808', minHeight: '100vh', paddingTop: '68px' }}>
+      <div className="container-wide" style={{ paddingTop: '40px', paddingBottom: '80px', maxWidth: '820px' }}>
 
-      {/* Invoice */}
-      <div className="glass-card rounded-2xl p-8 lg:p-12 print:bg-white print:text-black print:border-0">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="font-serif text-3xl tracking-[0.2em] gold-text print:text-black mb-1">SOUL x TIME</h1>
-          <p className="text-xs text-brand-gray tracking-widest italic print:text-gray-500">Where Time Finds Its Soul</p>
+        {/* Nav bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px', flexWrap: 'wrap', gap: '12px' }} className="no-print">
+          <Link href="/account" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#5A5A55', textDecoration: 'none', transition: 'color 0.2s' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#A0A09A'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#5A5A55'}>
+            <ArrowLeft size={14} /> Back
+          </Link>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <Button variant="glass" size="sm" onClick={() => window.print()} style={{ gap: '7px' }}>
+              <Printer size={14} /> Print
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => waMut.mutate()} loading={waMut.isPending} style={{ gap: '7px' }}>
+              <MessageCircle size={14} /> WhatsApp
+            </Button>
+          </div>
         </div>
 
-        <div className="border-t border-brand-black-border print:border-gray-300 mb-6" />
+        {/* Invoice card */}
+        <div style={{ background: '#0F0F0F', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', overflow: 'hidden' }}>
 
-        {/* Bill meta */}
-        <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-          <div>
-            <p className="text-brand-gray text-xs uppercase tracking-wider mb-1">Bill Number</p>
-            <p className="font-medium text-brand-white print:text-black">{bill.billNumber}</p>
+          {/* Brand header */}
+          <div style={{ padding: '40px 48px 32px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: '28px', letterSpacing: '0.18em', fontWeight: 400, background: 'linear-gradient(135deg,#C4A24A,#E8C96A 45%,#9A7A2A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', marginBottom: '6px' }}>
+              SOUL × TIME
+            </h1>
+            <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '13px', color: '#3A3A35', fontStyle: 'italic', letterSpacing: '0.08em' }}>Where Time Finds Its Soul</p>
           </div>
-          <div className="text-right">
-            <p className="text-brand-gray text-xs uppercase tracking-wider mb-1">Date</p>
-            <p className="font-medium text-brand-white print:text-black">{formatDateTime(bill.createdAt)}</p>
-          </div>
-          <div>
-            <p className="text-brand-gray text-xs uppercase tracking-wider mb-1">Customer</p>
-            <p className="font-medium text-brand-white print:text-black">{bill.customerName}</p>
-            <p className="text-brand-gray text-xs">{bill.customerPhone}</p>
-          </div>
-          <div className="text-right">
-            <div className="flex flex-col items-end gap-1">
-              <StatusBadge label={billStatusLabel(bill.billStatus)} colorClass={billStatusColor(bill.billStatus)} />
-              <StatusBadge label={paymentStatusLabel(bill.paymentStatus)} colorClass={paymentStatusColor(bill.paymentStatus)} />
+
+          {/* Meta grid */}
+          <div style={{ padding: '28px 48px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <MetaRow label="Bill Number" value={bill.billNumber} mono />
+              <MetaRow label="Customer" value={bill.customerName} />
+              <MetaRow label="Phone" value={bill.customerPhone} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'right' }}>
+              <MetaRow label="Date" value={formatDateTime(bill.createdAt)} right />
+              <MetaRow label="Payment" value={bill.paymentMethod} right />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+                <span className={`badge ${billStatusColor(bill.billStatus)}`}>{billStatusLabel(bill.billStatus)}</span>
+                <span className={`badge ${paymentStatusColor(bill.paymentStatus)}`}>{paymentStatusLabel(bill.paymentStatus)}</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="border-t border-brand-black-border print:border-gray-300 mb-6" />
-
-        {/* Items */}
-        <div className="overflow-x-auto mb-6">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-brand-gray text-xs uppercase tracking-wider">
-                <th className="text-left py-2 font-medium">Product</th>
-                <th className="text-right py-2 font-medium">Price</th>
-                <th className="text-right py-2 font-medium">Qty</th>
-                <th className="text-right py-2 font-medium">Discount</th>
-                <th className="text-right py-2 font-medium">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bill.items.map((item, i) => (
-                <tr key={item.id} className="border-t border-brand-black-border/50 print:border-gray-200">
-                  <td className="py-3 text-brand-white print:text-black font-medium">{item.productName}</td>
-                  <td className="py-3 text-right text-brand-gray">{formatCurrency(item.sellingPrice)}</td>
-                  <td className="py-3 text-right text-brand-gray">{item.quantity}</td>
-                  <td className="py-3 text-right text-green-400">
-                    {item.lineDiscountAmount > 0 ? `-${formatCurrency(item.lineDiscountAmount)}` : '—'}
-                  </td>
-                  <td className="py-3 text-right text-brand-white print:text-black font-medium">{formatCurrency(item.totalPrice)}</td>
+          {/* Items table */}
+          <div style={{ padding: '28px 48px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  {['Product', 'Unit Price', 'Qty', 'Discount', 'Total'].map((h, i) => (
+                    <th key={h} style={{ padding: '10px 0', fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', textAlign: i === 0 ? 'left' : 'right' }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {bill.items.map(item => (
+                  <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '14px 0', fontSize: '14px', color: '#F5F5F0', fontWeight: 500 }}>{item.productName}</td>
+                    <td style={{ padding: '14px 0', fontSize: '13px', color: '#A0A09A', textAlign: 'right' }}>{formatCurrency(item.sellingPrice)}</td>
+                    <td style={{ padding: '14px 0', fontSize: '13px', color: '#A0A09A', textAlign: 'right' }}>{item.quantity}</td>
+                    <td style={{ padding: '14px 0', fontSize: '13px', color: '#22c55e', textAlign: 'right' }}>
+                      {item.lineDiscountAmount > 0 ? `−${formatCurrency(item.lineDiscountAmount)}` : '—'}
+                    </td>
+                    <td style={{ padding: '14px 0', fontSize: '14px', color: '#F5F5F0', fontWeight: 500, textAlign: 'right' }}>{formatCurrency(item.totalPrice)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
-        <div className="border-t border-brand-black-border print:border-gray-300 mb-6" />
-
-        {/* Totals */}
-        <div className="flex justify-end mb-8">
-          <div className="w-64 space-y-2 text-sm">
-            <div className="flex justify-between text-brand-gray">
-              <span>Subtotal</span>
-              <span>{formatCurrency(bill.subtotal)}</span>
-            </div>
-            {bill.totalDiscount > 0 && (
-              <div className="flex justify-between text-green-400">
-                <span>Total Discount</span>
-                <span>-{formatCurrency(bill.totalDiscount)}</span>
+            {/* Totals */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{ width: '260px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#5A5A55', marginBottom: '8px' }}>
+                  <span>Subtotal</span><span>{formatCurrency(bill.subtotal)}</span>
+                </div>
+                {bill.totalDiscount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#22c55e', marginBottom: '8px' }}>
+                    <span>Discount</span><span>−{formatCurrency(bill.totalDiscount)}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                  <span style={{ fontSize: '14px', color: '#A0A09A', fontWeight: 500 }}>Total</span>
+                  <span style={{ fontFamily: "'Playfair Display',serif", fontSize: '22px', fontWeight: 600, background: 'linear-gradient(135deg,#C4A24A,#E8C96A 45%,#9A7A2A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                    {formatCurrency(bill.finalTotal)}
+                  </span>
+                </div>
               </div>
-            )}
-            <div className="flex justify-between font-serif text-xl text-brand-white print:text-black pt-2 border-t border-brand-black-border">
-              <span>Total</span>
-              <span className="gold-text print:text-black">{formatCurrency(bill.finalTotal)}</span>
             </div>
-          </div>
-        </div>
 
-        {/* Payment */}
-        <div className="glass-card-gold rounded-xl p-4 text-sm print:bg-gray-50 print:border-gray-200">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-brand-gray text-xs uppercase tracking-wider mb-1">Payment Method</p>
-              <p className="text-brand-white print:text-black">{bill.paymentMethod}</p>
-            </div>
+            {/* Payment info */}
             {bill.transactionRef && (
-              <div>
-                <p className="text-brand-gray text-xs uppercase tracking-wider mb-1">Reference</p>
-                <p className="text-brand-white print:text-black font-mono text-xs">{bill.transactionRef}</p>
+              <div style={{ marginTop: '24px', padding: '14px 16px', borderRadius: '12px', background: 'rgba(184,147,58,0.05)', border: '1px solid rgba(184,147,58,0.15)' }}>
+                <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '4px' }}>Transaction Reference</p>
+                <p style={{ fontSize: '13px', color: '#A0A09A', fontFamily: 'monospace' }}>{bill.transactionRef}</p>
               </div>
             )}
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className="text-center mt-10 pt-6 border-t border-brand-black-border print:border-gray-300">
-          <p className="font-display text-brand-gray italic text-sm print:text-gray-400">
-            Where Time Finds Its Soul
-          </p>
-          <p className="text-xs text-brand-gray/50 mt-1 print:text-gray-300">SOUL x TIME</p>
+          {/* Footer */}
+          <div style={{ padding: '20px 48px 32px', borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+            <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '15px', color: '#3A3A35', fontStyle: 'italic' }}>Where Time Finds Its Soul</p>
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function MetaRow({ label, value, mono, right }: { label: string; value: string; mono?: boolean; right?: boolean }) {
+  return (
+    <div style={{ textAlign: right ? 'right' : 'left' }}>
+      <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '3px' }}>{label}</p>
+      <p style={{ fontSize: '13px', color: '#F5F5F0', fontFamily: mono ? 'monospace' : 'inherit' }}>{value}</p>
     </div>
   );
 }

@@ -6,22 +6,29 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { productService } from '@/services';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { SkeletonCard, Pagination, Select, EmptyState } from '@/components/ui';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { SlidersHorizontal, X, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/utils';
 
 const SORT_OPTIONS = [
-  { value: 'createdAt,desc', label: 'Newest First' },
-  { value: 'sellingPrice,asc', label: 'Price: Low to High' },
-  { value: 'sellingPrice,desc', label: 'Price: High to Low' },
-  { value: 'name,asc', label: 'Name: A–Z' },
+  { value: 'createdAt,desc',    label: 'Newest First' },
+  { value: 'sellingPrice,asc',  label: 'Price: Low → High' },
+  { value: 'sellingPrice,desc', label: 'Price: High → Low' },
+  { value: 'name,asc',          label: 'Name: A–Z' },
 ];
 
 const STOCK_OPTIONS = [
-  { value: '', label: 'All Availability' },
-  { value: 'IN_STOCK', label: 'In Stock' },
+  { value: '',          label: 'All Availability' },
+  { value: 'IN_STOCK',  label: 'In Stock' },
   { value: 'LOW_STOCK', label: 'Low Stock' },
 ];
+
+const INLINE_INPUT: React.CSSProperties = {
+  backgroundColor: '#141414', color: '#F5F5F0',
+  WebkitTextFillColor: '#F5F5F0', caretColor: '#B8933A',
+  border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px',
+  fontSize: '14px', outline: 'none', width: '100%',
+  transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+};
 
 export default function ProductsPage() {
   const searchParams = useSearchParams();
@@ -30,229 +37,162 @@ export default function ProductsPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [localSearch, setLocalSearch] = useState(searchParams.get('search') ?? '');
 
-  const getParam = (key: string, fallback = '') => searchParams.get(key) ?? fallback;
-
-  const search      = getParam('search');
-  const categoryId  = getParam('categoryId') ? Number(getParam('categoryId')) : undefined;
-  const minPrice    = getParam('minPrice') ? Number(getParam('minPrice')) : undefined;
-  const maxPrice    = getParam('maxPrice') ? Number(getParam('maxPrice')) : undefined;
-  const stockStatus = getParam('stockStatus');
-  const page        = Number(getParam('page', '0'));
-  const sortRaw     = getParam('sort', 'createdAt,desc');
+  const gp = (k: string, fb = '') => searchParams.get(k) ?? fb;
+  const search      = gp('search');
+  const categoryId  = gp('categoryId') ? Number(gp('categoryId')) : undefined;
+  const minPrice    = gp('minPrice')   ? Number(gp('minPrice'))   : undefined;
+  const maxPrice    = gp('maxPrice')   ? Number(gp('maxPrice'))   : undefined;
+  const stockStatus = gp('stockStatus');
+  const page        = Number(gp('page', '0'));
+  const sortRaw     = gp('sort', 'createdAt,desc');
   const [sortBy, sortDir] = sortRaw.split(',');
 
-  const updateParam = useCallback((key: string, value: string | undefined) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (value) params.set(key, value);
-    else params.delete(key);
-    params.set('page', '0');
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  const upd = useCallback((key: string, value: string | undefined) => {
+    const p = new URLSearchParams(searchParams.toString());
+    value ? p.set(key, value) : p.delete(key);
+    p.set('page', '0');
+    router.replace(`${pathname}?${p.toString()}`, { scroll: false });
   }, [searchParams, router, pathname]);
 
-  const { data: categories } = useQuery({
-    queryKey: ['categories'],
-    queryFn: productService.getCategories,
-  });
-
+  const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: productService.getCategories });
   const { data, isLoading } = useQuery({
     queryKey: ['products', { search, categoryId, minPrice, maxPrice, stockStatus, page, sortBy, sortDir }],
     queryFn: () => productService.list({ search, categoryId, minPrice, maxPrice, stockStatus, page, size: 12, sortBy, sortDir }),
-    staleTime: 30_000,
-    placeholderData: (prev) => prev,
+    staleTime: 30_000, placeholderData: (p: any) => p,
   });
 
-  const hasActiveFilters = !!(search || categoryId || minPrice || maxPrice || stockStatus);
-
-  const clearFilters = () => {
-    setLocalSearch('');
-    router.replace(pathname, { scroll: false });
-  };
-
-  const handleSearchSubmit = (val: string) => {
-    updateParam('search', val);
-  };
+  const hasFilters = !!(search || categoryId || minPrice || maxPrice || stockStatus);
+  const clearAll = () => { setLocalSearch(''); router.replace(pathname, { scroll: false }); };
 
   return (
-    <div className="container-wide py-10">
-      {/* Page header */}
-      <div className="mb-10">
-        <p className="text-[#B8933A] text-xs tracking-[0.4em] uppercase mb-2">Collection</p>
-        <h1 className="font-serif text-3xl lg:text-4xl text-white">All Timepieces</h1>
-        {data && (
-          <p className="text-[#888] text-sm mt-2">{data.totalElements} watch{data.totalElements !== 1 ? 'es' : ''} found</p>
-        )}
-      </div>
+    <div style={{ background: '#080808', minHeight: '100vh', paddingTop: '68px' }}>
+      <div className="container-wide" style={{ paddingTop: '48px', paddingBottom: '80px' }}>
 
-      {/* Search + Filter bar */}
-      <div className="flex flex-col md:flex-row gap-4 mb-8">
-        {/* Search input — forced inline styles */}
-        <div className="flex-1 relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: '#888' }} />
-          <input
-            type="text"
-            placeholder="Search watches, brands..."
-            value={localSearch}
-            onChange={e => setLocalSearch(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleSearchSubmit(localSearch); }}
-            onBlur={() => handleSearchSubmit(localSearch)}
-            style={{
-              width: '100%', height: '44px',
-              paddingLeft: '2.75rem', paddingRight: '1rem',
-              borderRadius: '0.5rem', border: '1px solid #1E1E1E',
-              backgroundColor: '#161616', color: '#FAFAFA',
-              WebkitTextFillColor: '#FAFAFA', caretColor: '#B8933A',
-              fontSize: '0.875rem', outline: 'none',
-              transition: 'border-color 0.2s',
-            }}
-            onFocus={e => { e.target.style.borderColor = '#B8933A'; }}
-          />
+        {/* Page header */}
+        <div style={{ marginBottom: '40px' }}>
+          <p style={{ fontSize: '10px', letterSpacing: '0.4em', textTransform: 'uppercase', color: '#B8933A', fontWeight: 600, marginBottom: '10px' }}>Collection</p>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+            <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 'clamp(28px,3.5vw,42px)', color: '#F5F5F0', fontWeight: 400 }}>All Timepieces</h1>
+            {data && <p style={{ fontSize: '13px', color: '#5A5A55' }}>{data.totalElements} piece{data.totalElements !== 1 ? 's' : ''}</p>}
+          </div>
         </div>
 
-        <div className="flex gap-3 flex-shrink-0">
-          <Select
-            options={SORT_OPTIONS}
-            value={sortRaw}
-            onChange={e => updateParam('sort', e.target.value)}
-            className="w-52"
-            aria-label="Sort products"
-          />
-          <button
-            onClick={() => setFiltersOpen(v => !v)}
-            className={cn(
-              'flex items-center gap-2 h-11 px-4 rounded-lg border text-sm font-medium transition-all',
-              filtersOpen || hasActiveFilters
-                ? 'border-[#B8933A] text-[#B8933A]'
-                : 'border-[#1E1E1E] text-white/70 hover:border-[#B8933A]/50'
-            )}
-            style={{
-              backgroundColor: filtersOpen || hasActiveFilters ? 'rgba(184,147,58,0.08)' : '#161616',
-            }}
-          >
-            <SlidersHorizontal className="w-4 h-4" />
-            Filters
-            {hasActiveFilters && (
-              <span className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ backgroundColor: '#B8933A' }} />
-            )}
+        {/* Toolbar */}
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '28px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Search */}
+          <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+            <Search style={{ position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)', width: '15px', height: '15px', color: '#5A5A55', pointerEvents: 'none' }} />
+            <input
+              type="text" placeholder="Search watches, brands…"
+              value={localSearch}
+              onChange={e => setLocalSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && upd('search', localSearch)}
+              onBlur={() => upd('search', localSearch)}
+              style={{ ...INLINE_INPUT, height: '42px', paddingLeft: '40px', paddingRight: '14px' }}
+              onFocus={e => { e.target.style.borderColor = '#B8933A'; e.target.style.boxShadow = '0 0 0 3px rgba(184,147,58,0.1)'; }}
+            />
+          </div>
+
+          {/* Sort */}
+          <div style={{ position: 'relative', minWidth: '190px' }}>
+            <select value={sortRaw} onChange={e => upd('sort', e.target.value)}
+              style={{ ...INLINE_INPUT, height: '42px', padding: '0 32px 0 14px', appearance: 'none', cursor: 'pointer' }}
+              onFocus={e => { e.target.style.borderColor = '#B8933A'; }}
+              onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}>
+              {SORT_OPTIONS.map(o => <option key={o.value} value={o.value} style={{ background: '#1A1A1A' }}>{o.label}</option>)}
+            </select>
+            <svg style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', width: '14px', height: '14px', color: '#5A5A55', pointerEvents: 'none' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" /></svg>
+          </div>
+
+          {/* Filter toggle */}
+          <button onClick={() => setFiltersOpen(v => !v)} style={{
+            display: 'flex', alignItems: 'center', gap: '7px', height: '42px', padding: '0 16px',
+            borderRadius: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: 500,
+            border: filtersOpen || hasFilters ? '1px solid rgba(184,147,58,0.5)' : '1px solid rgba(255,255,255,0.08)',
+            background: filtersOpen || hasFilters ? 'rgba(184,147,58,0.07)' : '#141414',
+            color: filtersOpen || hasFilters ? '#B8933A' : 'rgba(245,245,240,0.6)',
+            transition: 'all 0.2s',
+          }}>
+            <SlidersHorizontal size={14} /> Filters
+            {hasFilters && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#B8933A', flexShrink: 0 }} />}
           </button>
 
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="flex items-center gap-1.5 h-11 px-3 rounded-lg border text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-              style={{ borderColor: 'rgba(239,68,68,0.3)', backgroundColor: '#161616' }}
-            >
-              <X className="w-4 h-4" /> Clear
+          {hasFilters && (
+            <button onClick={clearAll} style={{
+              display: 'flex', alignItems: 'center', gap: '5px', height: '42px', padding: '0 14px',
+              borderRadius: '10px', cursor: 'pointer', fontSize: '13px',
+              border: '1px solid rgba(239,68,68,0.25)', background: '#141414', color: '#f87171', transition: 'all 0.2s',
+            }}>
+              <X size={13} /> Clear
             </button>
           )}
         </div>
-      </div>
 
-      {/* Filter panel */}
-      <AnimatePresence>
-        {filtersOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22 }}
-            className="overflow-hidden mb-8"
-          >
-            <div className="rounded-2xl p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4"
-              style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1E1E1E' }}>
-              {/* Category filter */}
-              <Select
-                label="Category"
-                value={categoryId?.toString() ?? ''}
-                onChange={e => updateParam('categoryId', e.target.value)}
-                options={categories?.map(c => ({ value: c.id, label: c.name })) ?? []}
-                placeholder="All Categories"
-              />
-
-              {/* Price range */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-white/70 tracking-wider uppercase">Min Price (₹)</label>
-                <input
-                  type="number"
-                  min={0}
-                  defaultValue={minPrice}
-                  onBlur={e => updateParam('minPrice', e.target.value)}
-                  placeholder="0"
-                  style={{
-                    width: '100%', height: '44px', padding: '0 1rem',
-                    borderRadius: '0.5rem', border: '1px solid #1E1E1E',
-                    backgroundColor: '#161616', color: '#FAFAFA',
-                    WebkitTextFillColor: '#FAFAFA', caretColor: '#B8933A',
-                    fontSize: '0.875rem', outline: 'none',
-                  }}
-                  onFocus={e => { e.target.style.borderColor = '#B8933A'; }}
-                  onBlurCapture={e => { e.target.style.borderColor = '#1E1E1E'; }}
-                />
+        {/* Filter panel */}
+        <AnimatePresence>
+          {filtersOpen && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }} style={{ overflow: 'hidden', marginBottom: '28px' }}>
+              <div style={{ padding: '20px', borderRadius: '14px', background: '#141414', border: '1px solid rgba(255,255,255,0.08)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '16px' }}>
+                {/* Category */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '6px' }}>Category</label>
+                  <div style={{ position: 'relative' }}>
+                    <select value={categoryId?.toString() ?? ''} onChange={e => upd('categoryId', e.target.value)}
+                      style={{ ...INLINE_INPUT, height: '40px', padding: '0 30px 0 12px', appearance: 'none', cursor: 'pointer' }}>
+                      <option value="" style={{ background: '#1A1A1A' }}>All Categories</option>
+                      {categories?.map(c => <option key={c.id} value={c.id} style={{ background: '#1A1A1A' }}>{c.name}</option>)}
+                    </select>
+                    <svg style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', width: '13px', height: '13px', color: '#5A5A55', pointerEvents: 'none' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" /></svg>
+                  </div>
+                </div>
+                {/* Min Price */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '6px' }}>Min Price (₹)</label>
+                  <input type="number" min={0} defaultValue={minPrice} placeholder="0" onBlur={e => upd('minPrice', e.target.value)}
+                    style={{ ...INLINE_INPUT, height: '40px', padding: '0 12px' }} />
+                </div>
+                {/* Max Price */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '6px' }}>Max Price (₹)</label>
+                  <input type="number" min={0} defaultValue={maxPrice} placeholder="Any" onBlur={e => upd('maxPrice', e.target.value)}
+                    style={{ ...INLINE_INPUT, height: '40px', padding: '0 12px' }} />
+                </div>
+                {/* Availability */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '6px' }}>Availability</label>
+                  <div style={{ position: 'relative' }}>
+                    <select value={stockStatus} onChange={e => upd('stockStatus', e.target.value)}
+                      style={{ ...INLINE_INPUT, height: '40px', padding: '0 30px 0 12px', appearance: 'none', cursor: 'pointer' }}>
+                      {STOCK_OPTIONS.map(o => <option key={o.value} value={o.value} style={{ background: '#1A1A1A' }}>{o.label}</option>)}
+                    </select>
+                    <svg style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', width: '13px', height: '13px', color: '#5A5A55', pointerEvents: 'none' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" /></svg>
+                  </div>
+                </div>
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-white/70 tracking-wider uppercase">Max Price (₹)</label>
-                <input
-                  type="number"
-                  min={0}
-                  defaultValue={maxPrice}
-                  onBlur={e => updateParam('maxPrice', e.target.value)}
-                  placeholder="Any"
-                  style={{
-                    width: '100%', height: '44px', padding: '0 1rem',
-                    borderRadius: '0.5rem', border: '1px solid #1E1E1E',
-                    backgroundColor: '#161616', color: '#FAFAFA',
-                    WebkitTextFillColor: '#FAFAFA', caretColor: '#B8933A',
-                    fontSize: '0.875rem', outline: 'none',
-                  }}
-                  onFocus={e => { e.target.style.borderColor = '#B8933A'; }}
-                  onBlurCapture={e => { e.target.style.borderColor = '#1E1E1E'; }}
-                />
-              </div>
-
-              {/* Stock status */}
-              <Select
-                label="Availability"
-                value={stockStatus}
-                onChange={e => updateParam('stockStatus', e.target.value)}
-                options={STOCK_OPTIONS}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Products grid */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
-        </div>
-      ) : !data?.content.length ? (
-        <EmptyState
-          icon={<span className="text-6xl">⌚</span>}
-          title="No watches found"
-          description="Try adjusting your search or filters to find what you're looking for."
-          action={
-            <button onClick={clearFilters} className="text-[#B8933A] text-sm hover:underline">
-              Clear all filters
-            </button>
-          }
-        />
-      ) : (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {data.content.map((product, i) => (
-              <ProductCard key={product.id} product={product} index={i} />
-            ))}
+        {/* Grid */}
+        {isLoading ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '20px' }}>
+            {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
-
-          <Pagination
-            page={data.number}
-            totalPages={data.totalPages}
-            onPageChange={p => updateParam('page', p.toString())}
+        ) : !data?.content.length ? (
+          <EmptyState icon={<span style={{ fontSize: '56px' }}>⌚</span>}
+            title="No timepieces found"
+            description="Try adjusting your search or filters."
+            action={<button onClick={clearAll} style={{ color: '#B8933A', fontSize: '14px', textDecoration: 'underline', cursor: 'pointer' }}>Clear filters</button>}
           />
-        </>
-      )}
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '20px' }}>
+              {data.content.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
+            </div>
+            <Pagination page={data.number} totalPages={data.totalPages} onPageChange={p => upd('page', p.toString())} />
+          </>
+        )}
+      </div>
     </div>
   );
 }

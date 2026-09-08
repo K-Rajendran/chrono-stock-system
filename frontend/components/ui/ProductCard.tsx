@@ -5,45 +5,52 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ShoppingBag, Eye } from 'lucide-react';
 import { ProductPublic } from '@/types';
-import { PriceDisplay, StatusBadge } from '@/components/ui';
-import { cn } from '@/utils';
-import { stockStatusLabel } from '@/utils';
 import { useAuthStore } from '@/lib/store/authStore';
-import { cartService } from '@/services';
 import { useCartStore } from '@/lib/store/cartStore';
+import { cartService } from '@/services';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
 
-interface ProductCardProps {
+interface Props {
   product: ProductPublic;
   index?: number;
 }
 
-export function ProductCard({ product, index = 0 }: ProductCardProps) {
+export function ProductCard({ product: p, index = 0 }: Props) {
   const { isAuthenticated } = useAuthStore();
   const { incrementCount } = useCartStore();
   const [adding, setAdding] = useState(false);
-  const [imageError, setImageError] = useState(false);
-  const isOutOfStock = product.stockStatus === 'OUT_OF_STOCK';
-  const hasDiscount = product.discountAmount > 0;
 
-  const handleAddToCart = async (e: React.MouseEvent) => {
+  const outOfStock = p.stockStatus === 'OUT_OF_STOCK';
+
+  const hasDiscount = (p.discountAmount ?? 0) > 0;
+
+  const discPct =
+    hasDiscount && p.sellingPrice > 0
+      ? Math.round((p.discountAmount / p.sellingPrice) * 100)
+      : 0;
+
+  const handleAdd = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
 
     if (!isAuthenticated) {
-      toast.error('Please sign in to add items to cart');
+      toast.error('Sign in to add to cart');
       return;
     }
-    if (isOutOfStock) return;
+
+    if (outOfStock || adding) return;
 
     setAdding(true);
+
     try {
-      await cartService.addItem(product.id, 1);
+      await cartService.addItem(p.id, 1);
       incrementCount();
-      toast.success(`${product.name} added to cart`);
+      toast.success(`${p.name} added to cart`);
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Could not add to cart');
+      toast.error(
+        err?.response?.data?.message || 'Could not add to cart'
+      );
     } finally {
       setAdding(false);
     }
@@ -51,97 +58,247 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
 
   return (
     <motion.article
-      initial={{ opacity: 0, y: 24 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.06, duration: 0.4 }}
-      className="group"
+      transition={{
+        delay: index * 0.05,
+        duration: 0.45,
+        ease: [0, 0, 0.2, 1],
+      }}
+      className="product-card"
     >
-      <Link href={`/products/${product.id}`} className="block">
-        <div className="glass-card rounded-2xl overflow-hidden hover:border-brand-gold/30 transition-all duration-300 hover:shadow-gold-sm">
-          {/* Image */}
-          <div className="relative aspect-square bg-gradient-to-br from-brand-black-card to-brand-black-border overflow-hidden">
-            {product.primaryImageUrl ? (
+      <div className="product-card-shell">
+        {/* Product image / main link */}
+        <Link
+          href={`/products/${p.id}`}
+          className="product-card-main-link group block"
+          aria-label={`View ${p.name}`}
+        >
+          <div
+            style={{
+              position: 'relative',
+              aspectRatio: '1',
+              background:
+                'linear-gradient(145deg,#1a1a1a,#111)',
+              overflow: 'hidden',
+            }}
+          >
+            {p.primaryImageUrl ? (
               <Image
-                src={product.primaryImageUrl}
-                alt={product.name}
+                src={p.primaryImageUrl}
+                alt={p.name}
                 fill
                 className="object-cover transition-transform duration-700 group-hover:scale-105"
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                onError={() => setImageError(true)}
+                sizes="(max-width:640px) 100vw,(max-width:1024px) 50vw,25vw"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <span className="text-brand-gray/30 text-4xl font-serif">ST</span>
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "'Playfair Display',serif",
+                    fontSize: '32px',
+                    color: 'rgba(255,255,255,0.06)',
+                  }}
+                >
+                  ST
+                </span>
               </div>
             )}
 
-            {/* Badges */}
-            <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+            {/* Top badges */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '12px',
+                left: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+                zIndex: 2,
+              }}
+            >
               {hasDiscount && (
-                <span className="bg-brand-gold text-black text-xs font-bold px-2 py-0.5 rounded-full">
-                  -{Math.round((product.discountAmount / product.sellingPrice) * 100)}%
+                <span
+                  style={{
+                    background: '#B8933A',
+                    color: '#000',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    padding: '3px 8px',
+                    borderRadius: '100px',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  −{discPct}%
                 </span>
               )}
-              {isOutOfStock && (
-                <span className="bg-black/80 text-brand-gray/70 text-xs px-2 py-0.5 rounded-full border border-brand-black-border">
-                  Out of Stock
-                </span>
-              )}
-              {product.stockStatus === 'LOW_STOCK' && (
-                <span className="bg-yellow-500/20 text-yellow-400 text-xs px-2 py-0.5 rounded-full">
+
+              {p.stockStatus === 'LOW_STOCK' && (
+                <span
+                  style={{
+                    background: 'rgba(234,179,8,0.15)',
+                    color: '#fbbf24',
+                    fontSize: '10px',
+                    fontWeight: 500,
+                    padding: '3px 8px',
+                    borderRadius: '100px',
+                    border: '1px solid rgba(234,179,8,0.3)',
+                  }}
+                >
                   Low Stock
+                </span>
+              )}
+
+              {outOfStock && (
+                <span
+                  style={{
+                    background: 'rgba(255,255,255,0.06)',
+                    color: 'rgba(255,255,255,0.4)',
+                    fontSize: '10px',
+                    padding: '3px 8px',
+                    borderRadius: '100px',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                  }}
+                >
+                  Sold Out
                 </span>
               )}
             </div>
 
-            {/* Quick actions overlay */}
-            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
+            {/* Hover action overlay */}
+            <div className="product-card-overlay">
+              {/* Add to cart */}
               <button
-                onClick={handleAddToCart}
-                disabled={isOutOfStock || adding}
-                className={cn(
-                  'w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200',
-                  isOutOfStock
-                    ? 'bg-brand-black-border cursor-not-allowed'
-                    : 'bg-brand-gold text-black hover:bg-brand-gold-light hover:scale-110 shadow-gold'
-                )}
-                aria-label="Add to cart"
+                type="button"
+                onClick={handleAdd}
+                disabled={outOfStock || adding}
+                className={`product-card-action ${
+                  outOfStock ? 'is-disabled' : ''
+                }`}
+                aria-label={
+                  outOfStock
+                    ? 'Product is out of stock'
+                    : 'Add to cart'
+                }
               >
-                <ShoppingBag className="w-4 h-4" />
+                <ShoppingBag
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                  }}
+                />
               </button>
+
+              {/* View product */}
               <Link
-                href={`/products/${product.id}`}
-                className="w-11 h-11 rounded-full glass-card flex items-center justify-center hover:border-brand-gold/50 hover:scale-110 transition-all duration-200"
+                href={`/products/${p.id}`}
+                className="product-card-action product-card-view"
                 aria-label="View product"
-                onClick={(e) => e.stopPropagation()}
               >
-                <Eye className="w-4 h-4 text-brand-white" />
+                <Eye
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    color: '#fff',
+                  }}
+                />
               </Link>
             </div>
           </div>
 
-          {/* Info */}
-          <div className="p-4">
-            {product.brand && (
-              <p className="text-xs text-brand-gold tracking-widest uppercase mb-1 font-medium">
-                {product.brand}
+          {/* Product information */}
+          <div style={{ padding: '16px 18px 18px' }}>
+            {p.brand && (
+              <p
+                style={{
+                  fontSize: '10px',
+                  color: '#B8933A',
+                  fontWeight: 600,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  marginBottom: '4px',
+                }}
+              >
+                {p.brand}
               </p>
             )}
-            <h3 className="font-serif text-base text-brand-white mb-1 line-clamp-1 group-hover:gold-text transition-all duration-200">
-              {product.name}
+
+            <h3
+              style={{
+                fontFamily: "'Playfair Display',serif",
+                fontSize: '15px',
+                color: '#F5F5F0',
+                marginBottom: '3px',
+                lineHeight: 1.3,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                transition: 'color 0.2s ease',
+              }}
+              className="group-hover:text-gold"
+            >
+              {p.name}
             </h3>
-            {product.categoryName && (
-              <p className="text-xs text-brand-gray mb-3">{product.categoryName}</p>
+
+            {p.categoryName && (
+              <p
+                style={{
+                  fontSize: '12px',
+                  color: '#5A5A55',
+                  marginBottom: '12px',
+                }}
+              >
+                {p.categoryName}
+              </p>
             )}
-            <PriceDisplay
-              effectivePrice={product.effectivePrice}
-              sellingPrice={product.sellingPrice}
-              discountAmount={product.discountAmount}
-              size="sm"
-            />
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '8px',
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "'Playfair Display',serif",
+                  fontSize: '17px',
+                  fontWeight: 600,
+                  background:
+                    'linear-gradient(135deg,#C4A24A,#E8C96A 45%,#9A7A2A)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
+                ₹{p.effectivePrice.toLocaleString('en-IN')}
+              </span>
+
+              {hasDiscount && (
+                <span
+                  style={{
+                    fontSize: '12px',
+                    color: '#5A5A55',
+                    textDecoration: 'line-through',
+                  }}
+                >
+                  ₹{p.sellingPrice.toLocaleString('en-IN')}
+                </span>
+              )}
+            </div>
           </div>
-        </div>
-      </Link>
+        </Link>
+      </div>
     </motion.article>
   );
 }
+
+export default ProductCard;

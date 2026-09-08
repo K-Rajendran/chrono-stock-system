@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
+// @ts-ignore -- CSS side-effect imports are handled by Next.js at build time.
 import './globals.css';
 import { Providers } from '@/components/layout/Providers';
 import { Toaster } from 'react-hot-toast';
 
 export const metadata: Metadata = {
   title: {
-    default: 'SOUL x TIME — Where Time Finds Its Soul',
-    template: '%s | SOUL x TIME',
+    default: 'Afino — Where Time Finds Its Soul',
+    template: '%s | Afino',
   },
   description:
     'Premium luxury watch commerce. Discover handcrafted timepieces that transcend the ordinary. Where Time Finds Its Soul.',
