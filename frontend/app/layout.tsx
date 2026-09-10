@@ -1,58 +1,29 @@
 import type { Metadata } from 'next';
-// @ts-ignore -- CSS side-effect imports are handled by Next.js at build time.
-import './globals.css';
-import { Providers } from '@/components/layout/Providers';
-import { Toaster } from 'react-hot-toast';
+import '../styles/globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Afino — Where Time Finds Its Soul',
-    template: '%s | Afino',
+    default: 'SOUL x TIME — Where Time Finds Its Soul',
+    template: '%s | SOUL x TIME',
   },
-  description:
-    'Premium luxury watch commerce. Discover handcrafted timepieces that transcend the ordinary. Where Time Finds Its Soul.',
-  keywords: ['luxury watches', 'premium timepieces', 'soul x time', 'watch store'],
-  authors: [{ name: 'SOUL x TIME' }],
+  description: 'Premium luxury timepieces — where craftsmanship meets artistry. Discover our exclusive collection of fine watches.',
+  keywords: ['luxury watches', 'premium timepieces', 'fine watches', 'SOUL x TIME'],
   openGraph: {
-    title: 'SOUL x TIME — Where Time Finds Its Soul',
-    description: 'Premium luxury watch commerce platform.',
     type: 'website',
-    locale: 'en_US',
+    siteName: 'SOUL x TIME',
+    title: 'SOUL x TIME — Premium Luxury Watches',
+    description: 'Where time finds its soul. Discover our exclusive collection.',
   },
-  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
       </head>
-      <body>
-        <Providers>
-          {children}
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              style: {
-                background: '#161616',
-                color: '#FAFAFA',
-                border: '1px solid #1E1E1E',
-                borderRadius: '8px',
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '14px',
-              },
-              success: {
-                iconTheme: { primary: '#B8933A', secondary: '#0A0A0A' },
-              },
-              error: {
-                iconTheme: { primary: '#ef4444', secondary: '#0A0A0A' },
-              },
-            }}
-          />
-        </Providers>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

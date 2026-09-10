@@ -1,119 +1,159 @@
 'use client';
+
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Eye, EyeOff, ArrowRight } from 'lucide-react';
-import { authService } from '@/services';
-import { useAuthStore } from '@/lib/store/authStore';
-import { Button } from '@/components/ui/Button';
-import { extractApiError } from '@/lib/apiClient';
-import toast from 'react-hot-toast';
-import { motion } from 'framer-motion';
+import Link from 'next/link';
 
-const schema = z.object({
-  email: z.string().email('Enter a valid email'),
-  password: z.string().min(1, 'Password is required'),
-});
-type F = z.infer<typeof schema>;
-
-const FIELD: React.CSSProperties = {
-  backgroundColor: '#141414', color: '#F5F5F0', WebkitTextFillColor: '#F5F5F0',
-  caretColor: '#B8933A', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px',
-  fontSize: '14px', outline: 'none', width: '100%', height: '46px', padding: '0 14px',
-  transition: 'border-color 0.2s, box-shadow 0.2s',
-};
+const INPUT = {
+  width: '100%',
+  padding: '12px 16px',
+  background: 'rgba(8, 20, 40, 0.8)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-md)',
+  color: '#F5F5F0',
+  fontSize: '14px',
+  outline: 'none',
+  WebkitTextFillColor: '#030301',
+  caretColor: '#c9a84c',
+  transition: 'border-color var(--transition)',
+} as React.CSSProperties;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setAuth } = useAuthStore();
-  const [showPass, setShowPass] = useState(false);
-  const { register, handleSubmit, formState: { errors, isSubmitting }, setError } = useForm<F>({ resolver: zodResolver(schema) });
+  const [form, setForm] = useState({ email: '', password: '' });
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const onSubmit = async (data: F) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.email.trim() || !form.password) { setError('Please fill in all fields.'); return; }
+    setLoading(true);
+    setError(null);
     try {
-      const res = await authService.login(data);
-      setAuth({ userId: res.userId, email: res.email, fullName: res.fullName, role: res.role as any }, res.accessToken, res.refreshToken);
-      toast.success(`Welcome back, ${res.fullName.split(' ')[0]}!`);
-      router.push(res.role === 'ADMIN' ? '/admin' : '/');
-    } catch (err) { setError('root', { message: extractApiError(err) }); }
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      if (res.status === 401) throw new Error('Invalid email or password.');
+      if (!res.ok) throw new Error('Login failed. Please try again.');
+      const data = await res.json();
+
+      console.log('Login response:', data);
+
+      const accessToken = data.accessToken;
+
+      // Guard: ensure we got a real token string before saving
+      if (typeof accessToken !== 'string' || accessToken.split('.').length !== 3) {
+        console.error('Invalid access token:', accessToken);
+        throw new Error('Invalid response from server. Please try again.');
+      }
+
+      console.log('Access token received');
+      console.log('Token parts:', accessToken.split('.').length);
+      const userName = data.fullName || data.email || 'User';
+      localStorage.setItem('sxt_token', accessToken);
+
+      localStorage.setItem(
+        'sxt_user',
+        JSON.stringify({
+          name: userName,
+          role: data.role || 'CUSTOMER',
+          id: data.userId,
+          email: data.email,
+        })
+      );
+      // Notify Navbar to re-read user from localStorage
+      window.dispatchEvent(new Event('auth-updated'));
+      if (data.role === 'ADMIN') router.push('/admin/dashboard');
+      else router.push('/');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'An error occurred.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: '#080808' }}>
-      {/* Left panel */}
-      <div className="hidden lg:flex" style={{ width: '50%', position: 'relative', overflow: 'hidden', background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(20,14,2,0.95) 0%, #080808 70%)', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-          {[320, 220, 140].map(s => <div key={s} style={{ position: 'absolute', width: `${s}px`, height: `${s}px`, borderRadius: '50%', border: '1px solid rgba(184,147,58,0.1)' }} />)}
-        </div>
-        <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
-          <p style={{ fontFamily: "'Playfair Display',serif", fontSize: '32px', letterSpacing: '0.15em', color: '#F5F5F0', marginBottom: '8px' }}>
-            SOUL<span style={{ background: 'linear-gradient(135deg,#C4A24A,#E8C96A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', margin: '0 8px' }}>×</span>TIME
-          </p>
-          <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '17px', color: 'rgba(245,245,240,0.3)', fontStyle: 'italic', letterSpacing: '0.06em' }}>Where Time Finds Its Soul</p>
-        </div>
-      </div>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)', padding: '24px', position: 'relative', overflow: 'hidden' }}>
+      {/* Bg decoration */}
+      <div style={{ position: 'absolute', top: '20%', left: '50%', transform: 'translate(-50%, -50%)', width: '600px', height: '600px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(61,143,212,0.04) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
-      {/* Right panel */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55, ease: [0,0,0.2,1] }} style={{ width: '100%', maxWidth: '400px' }}>
-          <Link href="/" style={{ display: 'block', fontFamily: "'Playfair Display',serif", fontSize: '20px', letterSpacing: '0.15em', color: '#F5F5F0', textDecoration: 'none', marginBottom: '48px' }} className="lg:hidden">
-            SOUL<span style={{ background: 'linear-gradient(135deg,#C4A24A,#E8C96A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', margin: '0 6px' }}>×</span>TIME
+      <div style={{ width: '100%', maxWidth: '440px', position: 'relative', zIndex: 1 }}>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <Link href="/">
+            <img src="/afino-logo.svg" alt="AFINO" style={{ width: '158px', height: '158px', margin: '0 auto 12px', filter: 'invert(1) sepia(1) saturate(2) hue-rotate(185deg) brightness(1.3)' }} />
           </Link>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: '600', letterSpacing: '0.15em', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>AFINO</div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '6px' }}>Sign in to your account</p>
+        </div>
 
-          <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: '30px', color: '#F5F5F0', fontWeight: 400, marginBottom: '6px' }}>Welcome back</h1>
-          <p style={{ fontSize: '14px', color: '#5A5A55', marginBottom: '36px' }}>Sign in to your account to continue</p>
+        {/* Card */}
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)', padding: '40px', boxShadow: 'var(--shadow-lg)' }}>
+          {error && (
+            <div style={{ padding: '12px 16px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius-md)', color: '#f87171', fontSize: '14px', marginBottom: '24px' }}>
+              {error}
+            </div>
+          )}
 
-          <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '7px' }}>Email</label>
-              <input type="email" placeholder="you@example.com" autoComplete="email"
-                {...register('email')}
-                style={{ ...FIELD, borderColor: errors.email ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)' }}
-                onFocus={e => { e.target.style.borderColor = '#B8933A'; e.target.style.boxShadow = '0 0 0 3px rgba(184,147,58,0.1)'; }}
-                onBlur={e => { e.target.style.borderColor = errors.email ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none'; }}
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Email</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="you@example.com"
+                autoComplete="email"
+                required
+                style={INPUT}
+                onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }}
+                onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }}
               />
-              {errors.email && <p style={{ fontSize: '12px', color: '#f87171', marginTop: '4px' }}>{errors.email.message}</p>}
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '7px' }}>Password</label>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Password</label>
               <div style={{ position: 'relative' }}>
-                <input type={showPass ? 'text' : 'password'} placeholder="Your password" autoComplete="current-password"
-                  {...register('password')}
-                  style={{ ...FIELD, paddingRight: '44px', borderColor: errors.password ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)' }}
-                  onFocus={e => { e.target.style.borderColor = '#B8933A'; e.target.style.boxShadow = '0 0 0 3px rgba(184,147,58,0.1)'; }}
-                  onBlur={e => { e.target.style.borderColor = errors.password ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none'; }}
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  value={form.password}
+                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  required
+                  style={{ ...INPUT, paddingRight: '46px' }}
+                  onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }}
+                  onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }}
                 />
-                <button type="button" onClick={() => setShowPass(v => !v)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#5A5A55', cursor: 'pointer', display: 'flex', alignItems: 'center' }} aria-label={showPass ? 'Hide' : 'Show'}>
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                <button type="button" onClick={() => setShowPw(v => !v)}
+                  style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', fontSize: '16px' }}>
+                  {showPw ? '🙈' : '👁'}
                 </button>
               </div>
-              {errors.password && <p style={{ fontSize: '12px', color: '#f87171', marginTop: '4px' }}>{errors.password.message}</p>}
             </div>
 
-            {errors.root && (
-              <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)', fontSize: '13px', color: '#f87171' }}>
-                {errors.root.message}
-              </div>
-            )}
-
-            <Button type="submit" variant="gold" size="lg" fullWidth loading={isSubmitting} className="mt-2" style={{ gap: '8px' }}>
-              Sign In <ArrowRight size={15} />
-            </Button>
+            <button type="submit" disabled={loading}
+              style={{ width: '100%', padding: '13px', background: 'var(--gold-gradient)', color: '#000', fontWeight: '700', fontSize: '14px', borderRadius: 'var(--radius-md)', border: 'none', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '6px' }}>
+              {loading && <div style={{ width: 14, height: 14, border: '2px solid rgba(0,0,0,0.3)', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
+              {loading ? 'Signing in…' : 'Sign In'}
+            </button>
           </form>
 
-          <p style={{ textAlign: 'center', fontSize: '13px', color: '#5A5A55', marginTop: '28px' }}>
-            Don&apos;t have an account?{' '}
-            <Link href="/register" style={{ color: '#B8933A', textDecoration: 'none' }}
-              className="hover:text-[#D4AF6B]">
-              Create account
-            </Link>
+          <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '14px', color: 'var(--text-muted)' }}>
+            Don't have an account?{' '}
+            <Link href="/register" style={{ color: 'var(--blue-bright)', fontWeight: '500', textDecoration: 'none' }}>Register</Link>
           </p>
-        </motion.div>
+        </div>
+
+        <p style={{ textAlign: 'center', marginTop: '20px' }}>
+          <Link href="/" style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none' }}>← Back to store</Link>
+        </p>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

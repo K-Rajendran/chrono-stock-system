@@ -1,344 +1,348 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { adminService } from '@/services';
-import { Button, StatusBadge, LoadingSpinner, Modal, Input, Select } from '@/components/ui';
-import {
-  formatCurrency, formatDateTime,
-  paymentStatusLabel, paymentStatusColor,
-  billStatusLabel, billStatusColor,
-} from '@/utils';
-import { ArrowLeft, Printer, MessageCircle, Edit2, XCircle, Save } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import toast from 'react-hot-toast';
-import { BillResponse } from '@/types';
+import StatusBadge from '@/components/ui/StatusBadge';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
-interface Props { params: { id: string } }
+interface BillItem {
+  id: string;
+  productId: string;
+  productNameSnapshot: string;
+  sellingPriceSnapshot: number;
+  discountSnapshot: number;
+  discountType: 'NONE' | 'PERCENTAGE' | 'FIXED';
+  quantity: number;
+  lineTotal: number;
+}
 
-const PAYMENT_METHODS = ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER'].map(v => ({ value: v, label: v }));
-const PAYMENT_STATUSES = ['PENDING', 'PAID', 'PARTIAL', 'CANCELLED'].map(v => ({ value: v, label: v }));
-const BILL_STATUSES = ['DRAFT', 'ISSUED', 'SENT', 'PAID', 'CANCELLED'].map(v => ({ value: v, label: v }));
+interface Bill {
+  id: string;
+  billNumber: string;
+  customerName: string;
+  customerPhone: string;
+  items: BillItem[];
+  subtotal: number;
+  totalDiscount: number;
+  finalTotal: number;
+  paymentMethod: string;
+  paymentStatus: string;
+  transactionReference: string;
+  billStatus: string;
+  notes: string;
+  createdAt: string;
+}
 
-export default function AdminBillDetailPage({ params }: Props) {
-  const billId = Number(params.id);
+const fmt = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+const fmtDate = (s: string) => new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+
+const PAYMENT_METHODS = ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER'];
+const PAYMENT_STATUSES = ['PENDING', 'PAID', 'PARTIAL', 'CANCELLED'];
+const BILL_STATUSES = ['SENT', 'CANCELLED', 'ISSUED', 'PAID', 'DRAFT'];
+
+export default function AdminBillDetailPage() {
+  const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const qc = useQueryClient();
 
-  const [editOpen, setEditOpen] = useState(false);
-  const [cancelOpen, setCancelOpen] = useState(false);
-  const [waResult, setWaResult] = useState<{ link: string; message: string } | null>(null);
+  const [bill, setBill] = useState<Bill | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
 
-  const [editForm, setEditForm] = useState({
-    customerName: '',
-    customerPhone: '',
-    paymentMethod: '',
-    paymentStatus: '',
-    billStatus: '',
-    transactionRef: '',
+  const [editData, setEditData] = useState({
+    paymentMethod: 'CASH',
+    paymentStatus: 'PENDING',
+    transactionReference: '',
+    billStatus: 'PENDING',
     notes: '',
   });
 
-  const { data: bill, isLoading } = useQuery({
-    queryKey: ['admin-bill', billId],
-    queryFn: () => adminService.getBill(billId),
-    enabled: !!billId,
-    staleTime: 30_000,
-  });
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500); };
 
-  const openEdit = (b: BillResponse) => {
-    setEditForm({
-      customerName:  b.customerName,
-      customerPhone: b.customerPhone,
-      paymentMethod: b.paymentMethod,
-      paymentStatus: b.paymentStatus,
-      billStatus:    b.billStatus,
-      transactionRef:b.transactionRef ?? '',
-      notes:         b.notes ?? '',
-    });
-    setEditOpen(true);
+  const fetchBill = async () => {
+    setLoading(true); setError(null);
+    try {
+      const token = localStorage.getItem('sxt_token');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      const data: Bill = await res.json();
+      setBill(data);
+      setEditData({
+        paymentMethod: data.paymentMethod,
+        paymentStatus: data.paymentStatus,
+        transactionReference: data.transactionReference ?? '',
+        billStatus: data.billStatus,
+        notes: data.notes ?? '',
+      });
+    } catch { setError('Could not load bill.'); }
+    finally { setLoading(false); }
   };
 
-  const updateMutation = useMutation({
-    mutationFn: () => adminService.updateBill(billId, {
-      customerName:  editForm.customerName || undefined,
-      customerPhone: editForm.customerPhone || undefined,
-      paymentMethod: editForm.paymentMethod as any || undefined,
-      paymentStatus: editForm.paymentStatus as any || undefined,
-      billStatus:    editForm.billStatus as any || undefined,
-      transactionRef:editForm.transactionRef || undefined,
-      notes:         editForm.notes || undefined,
-    }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-bill', billId] });
-      qc.invalidateQueries({ queryKey: ['admin-bills'] });
-      toast.success('Bill updated');
-      setEditOpen(false);
-    },
-    onError: (err: any) => toast.error(err?.response?.data?.message || 'Could not update bill'),
-  });
+  useEffect(() => { fetchBill(); }, [id]);
 
-  const cancelMutation = useMutation({
-    mutationFn: () => adminService.cancelBill(billId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-bill', billId] });
-      qc.invalidateQueries({ queryKey: ['admin-bills'] });
-      toast.success('Bill cancelled — stock returned to inventory');
-      setCancelOpen(false);
-    },
-    onError: (err: any) => toast.error(err?.response?.data?.message || 'Could not cancel bill'),
-  });
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('sxt_token');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(editData),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message ?? 'Save failed');
+      }
+      showToast('Bill updated successfully.');
+      setEditMode(false);
+      fetchBill();
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to save changes.');
+    } finally { setSaving(false); }
+  };
 
-  const whatsappMutation = useMutation({
-    mutationFn: () => adminService.sendBillWhatsApp(billId),
-    onSuccess: (data) => {
-      setWaResult({ link: data.whatsappLink, message: data.message });
-      qc.invalidateQueries({ queryKey: ['admin-bill', billId] });
-    },
-    onError: () => toast.error('Could not generate WhatsApp message'),
-  });
+  const handleSendWhatsApp = async () => {
+    if (!bill) return;
+    try {
+      const token = localStorage.getItem('sxt_token');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}/send-whatsapp`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.whatsappUrl) {
+        window.open(data.whatsappUrl, '_blank');
+      } else {
+        showToast(data.message ?? 'WhatsApp message prepared.');
+      }
+    } catch {
+      // Fallback: build local link
+      const msg = encodeURIComponent(
+        `*AFINO — Bill #${bill.billNumber}*\n\n` +
+          `Customer: ${bill.customerName}\n` +
+          `Date: ${fmtDate(bill.createdAt)}\n\n` +
+          bill.items.map(i => `• ${i.productNameSnapshot} × ${i.quantity} — ${fmt(i.lineTotal)}`).join('\n') +
+          `\n\nTotal: *${fmt(bill.finalTotal)}*\n` +
+          `Payment: ${bill.paymentMethod} | ${bill.paymentStatus}`
+      );
+      window.open(`https://wa.me/${bill.customerPhone.replace(/\D/g, '')}?text=${msg}`, '_blank');
+    }
+  };
 
-  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setEditForm(f => ({ ...f, [k]: e.target.value }));
+  const handleCancelBill = async () => {
+    if (!confirm('Cancel this bill? Inventory will be restored.')) return;
+    try {
+      const token = localStorage.getItem('sxt_token');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}/cancel`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      showToast('Bill cancelled. Inventory restored.');
+      fetchBill();
+    } catch { showToast('Cancel failed.'); }
+  };
 
-  if (isLoading) return <LoadingSpinner size="lg" />;
-  if (!bill) return (
-    <div className="text-center py-20">
-      <p className="text-[#888]">Bill not found.</p>
-      <Link href="/admin/bills"><Button variant="ghost" className="mt-4">← Back to Bills</Button></Link>
+  const handlePrint = () => window.print();
+
+  if (loading) return <LoadingSpinner message="Loading bill…" />;
+  if (error || !bill) return (
+    <div style={{ padding: '40px', textAlign: 'center', color: '#f87171' }}>
+      {error ?? 'Bill not found.'}
+      <br /><button onClick={() => router.back()} style={{ marginTop: '12px', padding: '8px 16px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', cursor: 'pointer' }}>← Back</button>
     </div>
   );
 
-  const isCancelled = bill.billStatus === 'CANCELLED';
-
   return (
-    <div className="space-y-6 pb-12 max-w-4xl">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-4">
-          <Link href="/admin/bills">
-            <button className="p-2 rounded-xl hover:bg-white/5 transition-colors">
-              <ArrowLeft className="w-5 h-5 text-[#888]" />
+    <>
+      <style>{`@media print { .no-print { display: none !important; } body { background: white !important; color: black !important; } }`}</style>
+
+      {toast && (
+        <div style={{ position: 'fixed', bottom: '24px', right: '24px', padding: '12px 20px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', zIndex: 9999, boxShadow: 'var(--shadow-lg)' }}>
+          {toast}
+        </div>
+      )}
+
+      <div style={{ maxWidth: '960px', margin: '0 auto' }}>
+        {/* Top actions */}
+        <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', gap: '12px', flexWrap: 'wrap' }}>
+          <Link href="/admin/bills" style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none' }}>← Bills</Link>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {!editMode ? (
+              <button onClick={() => setEditMode(true)} style={{ padding: '8px 16px', background: 'rgba(61,143,212,0.1)', border: '1px solid var(--border-active)', borderRadius: 'var(--radius-md)', color: 'var(--blue-bright)', fontSize: '13px', cursor: 'pointer' }}>
+                Edit Bill
+              </button>
+            ) : (
+              <>
+                <button onClick={handleSave} disabled={saving} style={{ padding: '8px 16px', background: 'var(--gold-gradient)', color: '#000', fontWeight: '700', fontSize: '13px', borderRadius: 'var(--radius-md)', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+                <button onClick={() => setEditMode(false)} style={{ padding: '8px 16px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', fontSize: '13px', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+              </>
+            )}
+            <button onClick={handleSendWhatsApp} style={{ padding: '8px 16px', background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.3)', borderRadius: 'var(--radius-md)', color: '#25D366', fontSize: '13px', cursor: 'pointer' }}>
+              📱 Send WhatsApp
             </button>
-          </Link>
-          <div>
-            <h1 className="font-serif text-2xl text-white">{bill.billNumber}</h1>
-            <p className="text-[#888] text-sm">{formatDateTime(bill.createdAt)}</p>
+            <button onClick={handlePrint} style={{ padding: '8px 16px', background: 'rgba(61,143,212,0.08)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', fontSize: '13px', cursor: 'pointer' }}>
+              🖨 Print
+            </button>
+            {bill.billStatus !== 'CANCELLED' && (
+              <button onClick={handleCancelBill} style={{ padding: '8px 16px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius-md)', color: '#f87171', fontSize: '13px', cursor: 'pointer' }}>
+                Cancel Bill
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 no-print">
-          <Button variant="glass" size="sm" onClick={() => window.print()} className="gap-2">
-            <Printer className="w-4 h-4" /> Print
-          </Button>
-          {!isCancelled && (
-            <>
-              <Button variant="glass" size="sm" onClick={() => whatsappMutation.mutate()}
-                loading={whatsappMutation.isPending} className="gap-2">
-                <MessageCircle className="w-4 h-4 text-green-400" /> WhatsApp
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => openEdit(bill)} className="gap-2">
-                <Edit2 className="w-4 h-4" /> Edit
-              </Button>
-              <Button variant="danger" size="sm" onClick={() => setCancelOpen(true)} className="gap-2">
-                <XCircle className="w-4 h-4" /> Cancel Bill
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Status row */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <StatusBadge label={billStatusLabel(bill.billStatus)} colorClass={billStatusColor(bill.billStatus)} />
-        <StatusBadge label={paymentStatusLabel(bill.paymentStatus)} colorClass={paymentStatusColor(bill.paymentStatus)} />
-        {bill.whatsappSentAt && (
-          <span className="text-xs text-green-400 flex items-center gap-1">
-            <MessageCircle className="w-3 h-3" /> WhatsApp sent {formatDateTime(bill.whatsappSentAt)}
-          </span>
-        )}
-      </div>
-
-      {/* Invoice card */}
-      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #1E1E1E', background: '#0D0D0D' }}>
-        {/* Invoice header */}
-        <div className="p-8 pb-6 text-center border-b border-[#1E1E1E]">
-          <h2 className="font-serif text-3xl tracking-[0.2em] gold-text mb-1">SOUL x TIME</h2>
-          <p className="text-[#888] text-xs tracking-widest italic">Where Time Finds Its Soul</p>
-        </div>
-
-        {/* Bill meta */}
-        <div className="p-8 grid grid-cols-2 gap-6 border-b border-[#1E1E1E]">
-          <div className="space-y-3">
-            <Row label="Bill Number" value={bill.billNumber} mono />
-            <Row label="Customer" value={bill.customerName} />
-            <Row label="Phone" value={bill.customerPhone} />
+        {/* Bill document */}
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)', overflow: 'hidden', boxShadow: 'var(--shadow-lg)' }}>
+          {/* Brand header */}
+          <div style={{ padding: '36px 48px 28px', background: 'linear-gradient(135deg, rgba(8,20,40,0.9) 0%, rgba(13,32,64,0.8) 100%)', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '26px', fontWeight: '600', letterSpacing: '0.2em', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', marginBottom: '4px' }}>
+              AFINO
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', letterSpacing: '0.1em' }}>Where Time Finds Its Soul</div>
           </div>
-          <div className="space-y-3 text-right">
-            <Row label="Date" value={formatDateTime(bill.createdAt)} right />
-            <Row label="Payment Method" value={bill.paymentMethod} right />
-            {bill.transactionRef && <Row label="Reference" value={bill.transactionRef} mono right />}
-          </div>
-        </div>
 
-        {/* Items table */}
-        <div className="p-8">
-          <div className="overflow-x-auto mb-6">
-            <table className="w-full text-sm">
+          {/* Bill meta */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', padding: '28px 40px', borderBottom: '1px solid var(--border)' }}>
+            <div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Bill Number</div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)' }}>#{bill.billNumber}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Date</div>
+              <div style={{ fontSize: '15px', color: 'var(--text-primary)', fontWeight: '500' }}>{fmtDate(bill.createdAt)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Customer</div>
+              <div style={{ fontSize: '15px', color: 'var(--text-primary)', fontWeight: '600' }}>{bill.customerName}</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>{bill.customerPhone}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Status</div>
+              <StatusBadge status={bill.billStatus} />
+            </div>
+          </div>
+
+          {/* Items */}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
               <thead>
-                <tr className="text-[#888] text-xs uppercase tracking-wider border-b border-[#1E1E1E]">
-                  <th className="text-left py-3 font-medium">Product</th>
-                  <th className="text-right py-3 font-medium">Unit Price</th>
-                  <th className="text-right py-3 font-medium pr-2">Qty</th>
-                  <th className="text-right py-3 font-medium">Discount</th>
-                  <th className="text-right py-3 font-medium">Cost (Admin)</th>
-                  <th className="text-right py-3 font-medium">Total</th>
+                <tr style={{ background: 'rgba(8,20,40,0.5)', borderBottom: '1px solid var(--border)' }}>
+                  {['Product', 'Unit Price', 'Qty', 'Discount', 'Total'].map(h => (
+                    <th key={h} style={{ padding: '12px 20px', textAlign: h === 'Product' ? 'left' : 'right', fontSize: '11px', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {bill.items.map((item) => (
-                  <tr key={item.id} style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td className="py-3 text-white font-medium">{item.productName}</td>
-                    <td className="py-3 text-right text-[#888]">{formatCurrency(item.sellingPrice)}</td>
-                    <td className="py-3 text-right text-[#888] pr-2">{item.quantity}</td>
-                    <td className="py-3 text-right text-green-400">
-                      {item.lineDiscountAmount > 0 ? `-${formatCurrency(item.lineDiscountAmount)}` : '—'}
+                {bill.items.map((item, i) => (
+                  <tr key={item.id} style={{ borderBottom: i < bill.items.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                    <td style={{ padding: '14px 20px', color: 'var(--text-primary)', fontWeight: '500' }}>{item.productNameSnapshot}</td>
+                    <td style={{ padding: '14px 20px', textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(item.sellingPriceSnapshot)}</td>
+                    <td style={{ padding: '14px 20px', textAlign: 'right', color: 'var(--text-secondary)' }}>{item.quantity}</td>
+                    <td style={{ padding: '14px 20px', textAlign: 'right', color: 'var(--text-secondary)' }}>
+                      {item.discountSnapshot > 0 ? (item.discountType === 'PERCENTAGE' ? `${item.discountSnapshot}%` : fmt(item.discountSnapshot)) : '—'}
                     </td>
-                    <td className="py-3 text-right text-[#888] text-xs">
-                      {item.purchaseCost ? formatCurrency(item.purchaseCost) : '—'}
-                    </td>
-                    <td className="py-3 text-right text-white font-medium">{formatCurrency(item.totalPrice)}</td>
+                    <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: '700', color: 'var(--text-primary)' }}>{fmt(item.lineTotal)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Totals */}
-          <div className="flex justify-end">
-            <div className="w-72 space-y-2 text-sm">
-              <div className="flex justify-between text-[#888]">
-                <span>Subtotal ({bill.items.length} item{bill.items.length !== 1 ? 's' : ''})</span>
-                <span>{formatCurrency(bill.subtotal)}</span>
-              </div>
-              {bill.totalDiscount > 0 && (
-                <div className="flex justify-between text-green-400">
-                  <span>Total Discount</span>
-                  <span>-{formatCurrency(bill.totalDiscount)}</span>
+          {/* Payment + totals */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid var(--border)' }}>
+            {/* Payment fields — editable if in edit mode */}
+            <div style={{ padding: '24px 32px', borderRight: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '16px' }}>Payment</div>
+              {editMode ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {[
+                    { label: 'Method', field: 'paymentMethod', options: PAYMENT_METHODS },
+                    { label: 'Status', field: 'paymentStatus', options: PAYMENT_STATUSES },
+                    { label: 'Bill Status', field: 'billStatus', options: BILL_STATUSES },
+                  ].map(({ label, field, options }) => (
+                    <div key={field}>
+                      <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>{label}</label>
+                      <select value={(editData as Record<string, string>)[field]} onChange={e => setEditData(d => ({ ...d, [field]: e.target.value }))}
+                        style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '13px', outline: 'none' }}>
+                        {options.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                  <div>
+                    <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Transaction Reference</label>
+                    <input value={editData.transactionReference} onChange={e => setEditData(d => ({ ...d, transactionReference: e.target.value }))} placeholder="UPI/card ref…"
+                      style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '13px', outline: 'none', WebkitTextFillColor: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Notes</label>
+                    <textarea value={editData.notes} onChange={e => setEditData(d => ({ ...d, notes: e.target.value }))} rows={2}
+                      style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '13px', outline: 'none', resize: 'vertical', WebkitTextFillColor: 'var(--text-primary)' }} />
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {[
+                    ['Method', bill.paymentMethod],
+                    ['Status', null],
+                    ['Reference', bill.transactionReference || '—'],
+                  ].map(([label, val]) => (
+                    <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                      {label === 'Status' ? <StatusBadge status={bill.paymentStatus} size="sm" /> : <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{val as string}</span>}
+                    </div>
+                  ))}
                 </div>
               )}
-              {/* Profit line (admin only) */}
-              {bill.items.some(i => i.purchaseCost) && (() => {
-                const goodsCost = bill.items.reduce((s, i) => s + (i.purchaseCost ?? 0) * i.quantity, 0);
-                const profit = bill.finalTotal - goodsCost;
-                return (
-                  <div className="flex justify-between text-[#888] text-xs pt-1 border-t border-[#1E1E1E]">
-                    <span>Goods Cost</span>
-                    <span>{formatCurrency(goodsCost)}</span>
+            </div>
+
+            {/* Totals */}
+            <div style={{ padding: '24px 32px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '16px' }}>Summary</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Subtotal</span>
+                  <span style={{ color: 'var(--text-primary)' }}>{fmt(bill.subtotal)}</span>
+                </div>
+                {bill.totalDiscount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Discount</span>
+                    <span style={{ color: '#34d399' }}>−{fmt(bill.totalDiscount)}</span>
                   </div>
-                );
-              })()}
-              <div className="flex justify-between font-serif text-xl text-white pt-3 border-t border-[#1E1E1E]">
-                <span>Final Total</span>
-                <span className="gold-text">{formatCurrency(bill.finalTotal)}</span>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: '700', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                  <span style={{ color: 'var(--text-primary)' }}>Total</span>
+                  <span style={{ background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{fmt(bill.finalTotal)}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Footer */}
-        {bill.notes && (
-          <div className="px-8 pb-4">
-            <p className="text-xs text-[#888] uppercase tracking-wider mb-1">Notes</p>
-            <p className="text-sm text-white/70">{bill.notes}</p>
+          {/* Footer */}
+          <div style={{ padding: '20px 32px', borderTop: '1px solid var(--border)', textAlign: 'center', background: 'rgba(8,20,40,0.4)' }}>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic', letterSpacing: '0.08em' }}>
+              Thank you for choosing SOUL × TIME — Where Time Finds Its Soul
+            </p>
           </div>
-        )}
-
-        <div className="p-6 text-center border-t border-[#1E1E1E]">
-          <p className="font-display text-[#888] italic text-sm">Where Time Finds Its Soul</p>
         </div>
       </div>
 
-      {/* ── Edit Modal ─────────────────────────────────────── */}
-      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Bill Details" size="md">
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Customer Name" value={editForm.customerName} onChange={set('customerName')} />
-            <Input label="Customer Phone" value={editForm.customerPhone} onChange={set('customerPhone')} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Select label="Payment Method" options={PAYMENT_METHODS} value={editForm.paymentMethod} onChange={set('paymentMethod')} />
-            <Select label="Payment Status" options={PAYMENT_STATUSES} value={editForm.paymentStatus} onChange={set('paymentStatus')} />
-          </div>
-          <Select label="Bill Status" options={BILL_STATUSES} value={editForm.billStatus} onChange={set('billStatus')} />
-          <Input label="Transaction Reference" value={editForm.transactionRef} onChange={set('transactionRef')} placeholder="UPI / Reference ID" />
-          <Input label="Notes" value={editForm.notes} onChange={set('notes')} placeholder="Internal notes..." />
-
-          <div className="p-3 rounded-lg text-xs text-[#888]" style={{ background: 'rgba(184,147,58,0.05)', border: '1px solid rgba(184,147,58,0.15)' }}>
-            To add / remove / change item quantities, use <strong className="text-[#B8933A]">Cancel &amp; recreate</strong> or contact support.
-            Item changes affect inventory and require a full recalculation.
-          </div>
-
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="ghost" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button variant="gold" loading={updateMutation.isPending} onClick={() => updateMutation.mutate()} className="gap-2">
-              <Save className="w-4 h-4" /> Save Changes
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* ── Cancel Confirm ─────────────────────────────────── */}
-      <Modal open={cancelOpen} onClose={() => setCancelOpen(false)} title="Cancel Bill" size="sm">
-        <div className="space-y-4">
-          <div className="p-4 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)' }}>
-            <p className="text-red-400 font-medium mb-1">This action cannot be undone.</p>
-            <p className="text-white/70">
-              Cancelling <strong>{bill.billNumber}</strong> will return{' '}
-              <strong>all stock</strong> to inventory for each item.
-            </p>
-          </div>
-          <div className="flex gap-3 justify-end">
-            <Button variant="ghost" onClick={() => setCancelOpen(false)}>Go Back</Button>
-            <Button variant="danger" loading={cancelMutation.isPending} onClick={() => cancelMutation.mutate()}>
-              Cancel Bill &amp; Return Stock
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* ── WhatsApp Result Modal ──────────────────────────── */}
-      <Modal open={!!waResult} onClose={() => setWaResult(null)} title="WhatsApp Message Ready" size="lg">
-        {waResult && (
-          <div className="space-y-4">
-            <div className="rounded-xl p-4 overflow-auto max-h-64" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1E1E1E' }}>
-              <pre className="text-white text-sm whitespace-pre-wrap font-sans leading-relaxed">
-                {waResult.message}
-              </pre>
-            </div>
-            <p className="text-[#888] text-xs">
-              Click below to open WhatsApp with this pre-filled message for the customer.
-            </p>
-            <div className="flex gap-3">
-              <Button variant="gold" fullWidth className="gap-2"
-                onClick={() => { window.open(waResult.link, '_blank'); setWaResult(null); }}>
-                <MessageCircle className="w-4 h-4" /> Open in WhatsApp
-              </Button>
-              <Button variant="ghost" onClick={() => setWaResult(null)}>Close</Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-    </div>
-  );
-}
-
-function Row({ label, value, mono, right }: { label: string; value: string; mono?: boolean; right?: boolean }) {
-  return (
-    <div className={right ? 'text-right' : ''}>
-      <p className="text-[10px] text-[#888] uppercase tracking-wider mb-0.5">{label}</p>
-      <p className={`text-sm text-white ${mono ? 'font-mono' : ''}`}>{value}</p>
-    </div>
+      <style>{`
+        @media (max-width: 640px) {
+          div[style*="grid-template-columns: 1fr 1fr"]:not(table *) {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+    </>
   );
 }

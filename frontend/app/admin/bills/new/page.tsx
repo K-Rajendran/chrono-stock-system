@@ -1,404 +1,256 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { adminService } from '@/services';
-import { Button, Input, Select, LoadingSpinner } from '@/components/ui';
-import { formatCurrency } from '@/utils';
-import { Plus, Trash2, Search, ArrowLeft, Package } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-interface LineItem {
-  productId: number;
-  productName: string;
-  sku: string;
-  sellingPrice: number;
-  effectivePrice: number;
-  stockQuantity: number;
+interface Product { id: string; name: string; sellingPrice: number; effectivePrice: number; stockQuantity: number; discountValue: number; discountType: string; }
+
+interface BillItemDraft {
+  productId: string;
+  productNameSnapshot: string;
+  sellingPriceSnapshot: number;
+  discountSnapshot: number;
+  discountType: 'NONE' | 'PERCENTAGE' | 'FIXED';
   quantity: number;
-  discountValue: number;
-  discountType: string;
+  lineTotal: number;
 }
 
-export default function NewBillPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const requestId = searchParams.get('requestId');
+const fmt = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 
+const calcLineTotal = (price: number, discount: number, discountType: string, qty: number) => {
+  let unit = price;
+  if (discountType === 'PERCENTAGE') unit = price * (1 - discount / 100);
+  else if (discountType === 'FIXED') unit = price - discount;
+  return Math.max(0, unit) * qty;
+};
+
+export default function AdminNewBillPage() {
+  const router = useRouter();
+  const [products, setProducts] = useState<Product[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [items, setItems] = useState<LineItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
-  const [paymentStatus, setPaymentStatus] = useState('PENDING');
   const [transactionRef, setTransactionRef] = useState('');
   const [notes, setNotes] = useState('');
+  const [items, setItems] = useState<BillItemDraft[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState('');
-  const [pickerOpen, setPickerOpen] = useState(false);
-
-  // Pre-fill from purchase request
-  const { data: prData, isLoading: prLoading } = useQuery({
-    queryKey: ['admin-pr-prefill', requestId],
-    queryFn: () => adminService.getPurchaseRequest(Number(requestId)),
-    enabled: !!requestId,
-  });
 
   useEffect(() => {
-    if (!prData) return;
-    setCustomerName(prData.customerName);
-    setCustomerPhone(prData.customerPhone);
-    // Pre-fill items from PR
-    setItems(
-      prData.items
-        .filter(i => i.productId)
-        .map(i => ({
-          productId: i.productId!,
-          productName: i.productName,
-          sku: '',
-          sellingPrice: i.unitPrice,
-          effectivePrice: i.unitPrice,
-          stockQuantity: 999,
-          quantity: i.quantity,
-          discountValue: i.discountValue,
-          discountType: i.discountType,
-        }))
-    );
-  }, [prData]);
+    const token = localStorage.getItem('sxt_token');
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products?page=0&size=200&active=true`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => r.json()).then(d => setProducts(d.content ?? d ?? [])).catch(() => {});
+  }, []);
 
-  // Product search for picker
-  const { data: productResults, isLoading: searchLoading } = useQuery({
-    queryKey: ['product-picker', productSearch],
-    queryFn: () => adminService.listProducts({ search: productSearch, size: 10 }),
-    enabled: pickerOpen && productSearch.length >= 1,
-    staleTime: 30_000,
-  });
-
-  const { data: allProducts } = useQuery({
-    queryKey: ['product-picker-all'],
-    queryFn: () => adminService.listProducts({ size: 20, stockStatus: 'IN_STOCK' }),
-    enabled: pickerOpen && productSearch.length === 0,
-    staleTime: 60_000,
-  });
-
-  const displayProducts = productSearch.length >= 1 ? productResults?.content : allProducts?.content;
-
-  const createMutation = useMutation({
-    mutationFn: () =>
-      adminService.createBill({
-        customerName: customerName.trim(),
-        customerPhone: customerPhone.trim(),
-        purchaseRequestId: requestId ? Number(requestId) : undefined,
-        items: items.map(i => ({
-          productId: i.productId,
-          quantity: i.quantity,
-          discountValue: i.discountValue || 0,
-          discountType: i.discountType || 'PERCENTAGE',
-        })),
-        paymentMethod,
-        paymentStatus,
-        transactionRef: transactionRef.trim() || undefined,
-        notes: notes.trim() || undefined,
-      }),
-    onSuccess: (bill: any) => {
-      toast.success(`Bill ${bill.billNumber} created!`);
-      router.push(`/admin/bills/${bill.id}`);
-    },
-    onError: (err: any) =>
-      toast.error(err?.response?.data?.message || 'Could not create bill'),
-  });
-
-  const addProduct = (p: any) => {
-    const existing = items.find(i => i.productId === p.id);
-    if (existing) {
-      setItems(items.map(i =>
-        i.productId === p.id ? { ...i, quantity: Math.min(i.quantity + 1, p.stockQuantity) } : i
+  const addProduct = (p: Product) => {
+    const exists = items.find(i => i.productId === p.id);
+    if (exists) {
+      setItems(prev => prev.map(i => i.productId === p.id
+        ? { ...i, quantity: i.quantity + 1, lineTotal: calcLineTotal(i.sellingPriceSnapshot, i.discountSnapshot, i.discountType, i.quantity + 1) }
+        : i
       ));
     } else {
-      setItems([...items, {
+      const dt = (p.discountType as BillItemDraft['discountType']) || 'NONE';
+      const lt = calcLineTotal(p.sellingPrice, p.discountValue, dt, 1);
+      setItems(prev => [...prev, {
         productId: p.id,
-        productName: p.name,
-        sku: p.sku,
-        sellingPrice: p.sellingPrice,
-        effectivePrice: p.effectivePrice,
-        stockQuantity: (p as any).stockQuantity ?? 0,
+        productNameSnapshot: p.name,
+        sellingPriceSnapshot: p.sellingPrice,
+        discountSnapshot: p.discountValue,
+        discountType: dt,
         quantity: 1,
-        discountValue: p.discountValue ?? 0,
-        discountType: p.discountType ?? 'PERCENTAGE',
+        lineTotal: lt,
       }]);
     }
-    setPickerOpen(false);
     setProductSearch('');
   };
 
-  const removeItem = (productId: number) =>
-    setItems(items.filter(i => i.productId !== productId));
+  const updateQty = (productId: string, qty: number) => {
+    if (qty <= 0) { setItems(prev => prev.filter(i => i.productId !== productId)); return; }
+    setItems(prev => prev.map(i => i.productId === productId
+      ? { ...i, quantity: qty, lineTotal: calcLineTotal(i.sellingPriceSnapshot, i.discountSnapshot, i.discountType, qty) }
+      : i
+    ));
+  };
 
-  const updateQty = (productId: number, qty: number) =>
-    setItems(items.map(i => i.productId === productId ? { ...i, quantity: Math.max(1, qty) } : i));
+  const subtotal = items.reduce((s, i) => s + i.lineTotal, 0);
+  const filteredProducts = products.filter(p =>
+    productSearch.length >= 2 &&
+    (p.name.toLowerCase().includes(productSearch.toLowerCase()))
+  );
 
-  // Compute totals preview (display only — backend recalculates)
-  const computedTotal = items.reduce((sum, i) => {
-    const unit = i.discountType === 'PERCENTAGE'
-      ? i.sellingPrice * (1 - i.discountValue / 100)
-      : Math.max(0, i.sellingPrice - i.discountValue);
-    return sum + unit * i.quantity;
-  }, 0);
+  const handleSubmit = async () => {
+    if (!customerName.trim()) { setError('Customer name is required.'); return; }
+    if (!customerPhone.trim()) { setError('Customer phone is required.'); return; }
+    if (items.length === 0) { setError('Add at least one item.'); return; }
 
-  const canSubmit = customerName.trim() && customerPhone.trim() && items.length > 0;
+    setSubmitting(true); setError(null);
+    try {
+      const token = localStorage.getItem('sxt_token');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ customerName, customerPhone, paymentMethod, transactionReference: transactionRef, notes, items }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message ?? 'Failed to create bill');
+      }
+      const bill = await res.json();
+      router.push(`/admin/bills/${bill.id}`);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'An error occurred.');
+    } finally { setSubmitting(false); }
+  };
 
-  if (requestId && prLoading) return <LoadingSpinner size="lg" />;
+  const INPUT = { width: '100%', padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', WebkitTextFillColor: 'var(--text-primary)' } as React.CSSProperties;
 
   return (
-    <div className="max-w-3xl space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href="/admin/bills">
-          <button className="p-2 rounded-xl hover:bg-white/5 transition-colors">
-            <ArrowLeft className="w-5 h-5 text-[#888]" />
-          </button>
-        </Link>
+    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', gap: '16px', flexWrap: 'wrap' }}>
         <div>
-          <h1 className="font-serif text-2xl text-white">Create Bill</h1>
-          {requestId && (
-            <p className="text-[#B8933A] text-sm mt-0.5">
-              Linked to purchase request #{requestId}
-            </p>
+          <Link href="/admin/bills" style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none', marginBottom: '4px', display: 'inline-block' }}>← Bills</Link>
+          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.4rem, 3vw, 2rem)', fontWeight: '700', color: 'var(--text-primary)' }}>Create Bill</h1>
+        </div>
+      </div>
+
+      {error && <div style={{ padding: '12px 16px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius-md)', color: '#f87171', fontSize: '14px', marginBottom: '20px' }}>{error}</div>}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Customer */}
+        <Section title="Customer Details">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <label style={LBL}>Customer Name *</label>
+              <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Full name" style={INPUT} onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }} />
+            </div>
+            <div>
+              <label style={LBL}>Phone *</label>
+              <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="+91 98765 43210" style={INPUT} onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }} />
+            </div>
+          </div>
+        </Section>
+
+        {/* Products */}
+        <Section title="Items">
+          <div style={{ position: 'relative', marginBottom: '16px' }}>
+            <label style={LBL}>Add Product</label>
+            <input value={productSearch} onChange={e => setProductSearch(e.target.value)} placeholder="Type product name to search…" style={INPUT} onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }} />
+            {filteredProducts.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', zIndex: 50, maxHeight: '200px', overflowY: 'auto', marginTop: '4px', boxShadow: 'var(--shadow-lg)' }}>
+                {filteredProducts.map(p => (
+                  <button key={p.id} onClick={() => addProduct(p)}
+                    style={{ display: 'flex', justifyContent: 'space-between', width: '100%', padding: '10px 14px', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left', fontSize: '13px', transition: 'background var(--transition)' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(61,143,212,0.08)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                    <span>{p.name}</span>
+                    <span style={{ color: 'var(--gold)', fontWeight: '600' }}>{fmt(p.effectivePrice)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {items.length === 0 ? (
+            <div style={{ padding: '32px', textAlign: 'center', background: 'rgba(8,20,40,0.3)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)', color: 'var(--text-muted)', fontSize: '14px' }}>
+              Search and select products above
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    {['Product', 'Price', 'Qty', 'Total', ''].map(h => (
+                      <th key={h} style={{ padding: '10px 12px', textAlign: h === '' || h === 'Product' ? 'left' : 'right', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, i) => (
+                    <tr key={item.productId} style={{ borderBottom: i < items.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                      <td style={{ padding: '12px', color: 'var(--text-primary)', fontWeight: '500' }}>{item.productNameSnapshot}</td>
+                      <td style={{ padding: '12px', textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(item.sellingPriceSnapshot)}</td>
+                      <td style={{ padding: '12px', textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                          <button onClick={() => updateQty(item.productId, item.quantity - 1)} style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '16px' }}>−</button>
+                          <span style={{ width: '32px', textAlign: 'center', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>{item.quantity}</span>
+                          <button onClick={() => updateQty(item.productId, item.quantity + 1)} style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '16px' }}>+</button>
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: '700', color: 'var(--text-primary)' }}>{fmt(item.lineTotal)}</td>
+                      <td style={{ padding: '12px' }}>
+                        <button onClick={() => setItems(prev => prev.filter(i => i.productId !== item.productId))}
+                          style={{ padding: '4px 8px', background: 'none', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius-sm)', color: '#f87171', cursor: 'pointer', fontSize: '13px' }}>×</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--border)', marginTop: '8px' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Subtotal</div>
+                  <div style={{ fontSize: '20px', fontWeight: '700', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{fmt(subtotal)}</div>
+                </div>
+              </div>
+            </div>
           )}
+        </Section>
+
+        {/* Payment */}
+        <Section title="Payment">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <label style={LBL}>Payment Method</label>
+              <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
+                style={{ ...INPUT, cursor: 'pointer' }}>
+                {['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER'].map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={LBL}>Transaction Reference</label>
+              <input value={transactionRef} onChange={e => setTransactionRef(e.target.value)} placeholder="Optional" style={INPUT} onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }} />
+            </div>
+          </div>
+          <div>
+            <label style={LBL}>Notes</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Optional notes…"
+              style={{ ...INPUT, resize: 'vertical' }} onFocus={e => { (e.target as HTMLTextAreaElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLTextAreaElement).style.borderColor = 'var(--border)'; }} />
+          </div>
+        </Section>
+
+        {/* Submit */}
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button onClick={handleSubmit} disabled={submitting}
+            style={{ padding: '13px 28px', background: 'var(--gold-gradient)', color: '#000', fontWeight: '700', fontSize: '14px', borderRadius: 'var(--radius-md)', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--shadow-gold)' }}>
+            {submitting && <div style={{ width: 14, height: 14, border: '2px solid rgba(0,0,0,0.3)', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
+            {submitting ? 'Creating…' : 'Create Bill'}
+          </button>
+          <button onClick={() => router.back()} style={{ padding: '13px 24px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
         </div>
       </div>
 
-      {/* Customer Details */}
-      <Section title="Customer Details">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input
-            label="Customer Name *"
-            value={customerName}
-            onChange={e => setCustomerName(e.target.value)}
-            placeholder="Full name"
-          />
-          <Input
-            label="Phone Number *"
-            value={customerPhone}
-            onChange={e => setCustomerPhone(e.target.value)}
-            placeholder="+91 98765 43210"
-          />
-        </div>
-      </Section>
-
-      {/* Items */}
-      <Section title="Bill Items">
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-[#888] text-sm">{items.length} item{items.length !== 1 ? 's' : ''} added</p>
-          <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)} className="gap-2">
-            <Plus className="w-4 h-4" /> Add Product
-          </Button>
-        </div>
-
-        {/* Product picker inline */}
-        {pickerOpen && (
-          <div className="mb-4 rounded-xl overflow-hidden" style={{ border: '1px solid #B8933A33', background: '#111' }}>
-            <div className="p-3 border-b border-[#1E1E1E]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: '#888' }} />
-                <input
-                  autoFocus
-                  type="text"
-                  placeholder="Type to search products..."
-                  value={productSearch}
-                  onChange={e => setProductSearch(e.target.value)}
-                  style={{
-                    width: '100%', height: '38px',
-                    paddingLeft: '2.25rem', paddingRight: '1rem',
-                    borderRadius: '0.5rem', border: '1px solid #1E1E1E',
-                    backgroundColor: '#161616', color: '#FAFAFA',
-                    WebkitTextFillColor: '#FAFAFA', caretColor: '#B8933A',
-                    fontSize: '0.875rem', outline: 'none',
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="max-h-64 overflow-y-auto divide-y divide-[#1E1E1E]">
-              {searchLoading ? (
-                <div className="p-4 text-center text-[#888] text-sm">Searching...</div>
-              ) : !displayProducts?.length ? (
-                <div className="p-4 text-center text-[#888] text-sm">
-                  {productSearch ? 'No products found.' : 'Loading products...'}
-                </div>
-              ) : (
-                displayProducts.map((p: any) => (
-                  <button
-                    key={p.id}
-                    onClick={() => addProduct(p)}
-                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      {p.primaryImageUrl && (
-                        <img src={p.primaryImageUrl} alt={p.name}
-                          className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                      )}
-                      <div>
-                        <p className="text-white text-sm font-medium">{p.name}</p>
-                        <p className="text-[#888] text-xs">{p.sku} · Stock: {(p as any).stockQuantity ?? '?'}</p>
-                      </div>
-                    </div>
-                    <div className="text-right flex-shrink-0 ml-4">
-                      <p className="text-[#B8933A] font-serif text-sm">{formatCurrency(p.effectivePrice)}</p>
-                      {p.discountAmount > 0 && (
-                        <p className="text-[#888] text-xs line-through">{formatCurrency(p.sellingPrice)}</p>
-                      )}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-
-            <div className="p-2 border-t border-[#1E1E1E] text-right">
-              <button onClick={() => { setPickerOpen(false); setProductSearch(''); }}
-                className="text-xs text-[#888] hover:text-white transition-colors px-2 py-1">
-                Close
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Items list */}
-        {items.length === 0 ? (
-          <div className="py-10 text-center rounded-xl" style={{ border: '1px dashed #1E1E1E' }}>
-            <Package className="w-10 h-10 text-[#333] mx-auto mb-2" />
-            <p className="text-[#888] text-sm">No items added yet.</p>
-            <p className="text-[#555] text-xs">Click "Add Product" to add watches to this bill.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {items.map(item => {
-              const unitAfterDisc = item.discountType === 'PERCENTAGE'
-                ? item.sellingPrice * (1 - item.discountValue / 100)
-                : Math.max(0, item.sellingPrice - item.discountValue);
-              const lineTotal = unitAfterDisc * item.quantity;
-
-              return (
-                <div key={item.productId}
-                  className="flex items-center gap-3 p-3 rounded-xl"
-                  style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1E1E1E' }}>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium truncate">{item.productName}</p>
-                    <div className="flex gap-3 text-xs text-[#888] mt-0.5">
-                      <span>{item.sku}</span>
-                      <span>{formatCurrency(item.sellingPrice)} each</span>
-                      {item.discountValue > 0 && (
-                        <span className="text-green-400">
-                          {item.discountType === 'PERCENTAGE' ? `-${item.discountValue}%` : `-${formatCurrency(item.discountValue)}`}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Quantity */}
-                  <div className="flex items-center rounded-lg overflow-hidden flex-shrink-0"
-                    style={{ border: '1px solid #1E1E1E' }}>
-                    <button
-                      onClick={() => updateQty(item.productId, item.quantity - 1)}
-                      disabled={item.quantity <= 1}
-                      className="w-8 h-8 flex items-center justify-center text-white hover:bg-white/10 disabled:opacity-40 transition-colors"
-                    >−</button>
-                    <span className="w-9 text-center text-sm text-white">{item.quantity}</span>
-                    <button
-                      onClick={() => updateQty(item.productId, item.quantity + 1)}
-                      disabled={item.quantity >= item.stockQuantity}
-                      className="w-8 h-8 flex items-center justify-center text-white hover:bg-white/10 disabled:opacity-40 transition-colors"
-                    >+</button>
-                  </div>
-
-                  <div className="text-right flex-shrink-0 w-24">
-                    <p className="text-white font-serif text-sm">{formatCurrency(lineTotal)}</p>
-                  </div>
-
-                  <button onClick={() => removeItem(item.productId)}
-                    className="p-1.5 rounded-lg hover:bg-red-500/10 text-[#888] hover:text-red-400 transition-colors flex-shrink-0">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              );
-            })}
-
-            {/* Total preview */}
-            <div className="flex justify-end pt-3 border-t border-[#1E1E1E] mt-2">
-              <div className="text-right">
-                <p className="text-[#888] text-xs mb-1">Estimated Total</p>
-                <p className="font-serif text-xl gold-text">{formatCurrency(computedTotal)}</p>
-                <p className="text-[#555] text-xs mt-0.5">Final amount calculated server-side</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </Section>
-
-      {/* Payment */}
-      <Section title="Payment Details">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Select
-            label="Payment Method"
-            value={paymentMethod}
-            onChange={e => setPaymentMethod(e.target.value)}
-            options={['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER'].map(v => ({ value: v, label: v }))}
-          />
-          <Select
-            label="Payment Status"
-            value={paymentStatus}
-            onChange={e => setPaymentStatus(e.target.value)}
-            options={['PENDING', 'PAID', 'PARTIAL', 'CANCELLED'].map(v => ({ value: v, label: v }))}
-          />
-          <Input
-            label="Transaction Reference (optional)"
-            value={transactionRef}
-            onChange={e => setTransactionRef(e.target.value)}
-            placeholder="UPI / Bank reference ID"
-          />
-          <Input
-            label="Notes (optional)"
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-            placeholder="Any internal notes..."
-          />
-        </div>
-      </Section>
-
-      {/* Submit */}
-      {!canSubmit && (
-        <div className="p-3 rounded-lg text-sm text-[#888]"
-          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1E1E1E' }}>
-          {!customerName.trim() && <p>· Customer name is required</p>}
-          {!customerPhone.trim() && <p>· Customer phone is required</p>}
-          {items.length === 0 && <p>· At least one product is required</p>}
-        </div>
-      )}
-
-      <div className="flex gap-4 justify-end pt-2 border-t border-[#1E1E1E]">
-        <Link href="/admin/bills">
-          <Button variant="ghost" size="lg">Cancel</Button>
-        </Link>
-        <Button
-          variant="gold"
-          size="lg"
-          disabled={!canSubmit}
-          loading={createMutation.isPending}
-          onClick={() => createMutation.mutate()}
-        >
-          Create Bill
-        </Button>
-      </div>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 640px) {
+          div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }
 
+const LBL = { display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '6px', letterSpacing: '0.08em', textTransform: 'uppercase' } as React.CSSProperties;
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl p-6" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1E1E1E' }}>
-      <h2 className="font-serif text-lg text-white border-b border-[#1E1E1E] pb-3 mb-4">{title}</h2>
-      {children}
+    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', background: 'rgba(8,20,40,0.4)' }}>
+        <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)' }}>{title}</h3>
+      </div>
+      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>{children}</div>
     </div>
   );
 }

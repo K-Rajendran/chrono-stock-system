@@ -1,64 +1,98 @@
 'use client';
-import { cn } from '@/utils';
-import { Loader2 } from 'lucide-react';
-import { ButtonHTMLAttributes, forwardRef } from 'react';
+
+import { ButtonHTMLAttributes, ReactNode } from 'react';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'gold' | 'outline' | 'ghost' | 'danger' | 'glass';
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'gold';
+  size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
+  children: ReactNode;
   fullWidth?: boolean;
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = 'gold', size = 'md', loading = false, fullWidth = false, className, children, disabled, style, ...props }, ref) => {
+const variants: Record<string, React.CSSProperties> = {
+  primary: {
+    background: 'rgba(61,143,212,0.15)',
+    border: '1px solid rgba(61,143,212,0.4)',
+    color: 'var(--blue-bright)',
+  },
+  secondary: {
+    background: 'transparent',
+    border: '1px solid var(--border)',
+    color: 'var(--text-secondary)',
+  },
+  ghost: {
+    background: 'transparent',
+    border: '1px solid transparent',
+    color: 'var(--text-secondary)',
+  },
+  danger: {
+    background: 'rgba(239,68,68,0.1)',
+    border: '1px solid rgba(239,68,68,0.3)',
+    color: '#f87171',
+  },
+  gold: {
+    background: 'var(--gold-gradient)',
+    border: 'none',
+    color: '#000',
+    fontWeight: '700',
+    boxShadow: 'var(--shadow-gold)',
+  },
+};
 
-    const base = [
-      'inline-flex items-center justify-center gap-2 font-medium tracking-wide',
-      'transition-all duration-[220ms] cubic-bezier(0.4,0,0.2,1)',
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 focus-visible:ring-offset-ink',
-      'disabled:opacity-40 disabled:cursor-not-allowed',
-      'select-none whitespace-nowrap',
-    ].join(' ');
+const sizes: Record<string, React.CSSProperties> = {
+  sm: { padding: '6px 14px', fontSize: '12px', borderRadius: 'var(--radius-sm)' },
+  md: { padding: '10px 20px', fontSize: '14px', borderRadius: 'var(--radius-md)' },
+  lg: { padding: '14px 28px', fontSize: '15px', borderRadius: 'var(--radius-md)' },
+};
 
-    const variantStyles: Record<string, React.CSSProperties> = {
-      primary: { background: 'linear-gradient(135deg,#C4A24A,#E8C96A 50%,#9A7A2A)', color: '#000', border: 'none' },
-      gold:    { background: 'linear-gradient(135deg,#C4A24A,#E8C96A 50%,#9A7A2A)', color: '#000', border: 'none' },
-      outline: { background: 'transparent', color: '#B8933A', border: '1px solid rgba(184,147,58,0.6)' },
-      ghost:   { background: 'transparent', color: 'rgba(245,245,240,0.65)', border: 'none' },
-      danger:  { background: '#dc2626', color: '#fff', border: 'none' },
-      glass:   { background: 'rgba(255,255,255,0.04)', color: '#F5F5F0', border: '1px solid rgba(255,255,255,0.1)' },
-    };
-
-    const hoverMap: Record<string, string> = {
-      primary: 'hover:opacity-90 hover:shadow-gold active:scale-[0.98]',
-      gold:    'hover:opacity-90 hover:shadow-gold active:scale-[0.98]',
-      outline: 'hover:bg-gold/10 hover:border-gold active:scale-[0.98]',
-      ghost:   'hover:text-cream hover:bg-white/6',
-      danger:  'hover:bg-red-500 active:scale-[0.98]',
-      glass:   'hover:bg-white/8 hover:border-white/20 active:scale-[0.98]',
-    };
-
-    const sizeMap: Record<string, string> = {
-      xs: 'h-7 px-3 text-xs rounded-lg',
-      sm: 'h-8 px-4 text-xs rounded-xl',
-      md: 'h-10 px-5 text-sm rounded-xl',
-      lg: 'h-12 px-7 text-sm rounded-xl',
-      xl: 'h-14 px-10 text-base rounded-2xl',
-    };
-
-    return (
-      <button
-        ref={ref}
-        className={cn(base, hoverMap[variant], sizeMap[size], fullWidth && 'w-full', className)}
-        style={{ ...variantStyles[variant], ...style }}
-        disabled={disabled || loading}
-        {...props}
-      >
-        {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-        {children}
-      </button>
-    );
-  }
-);
-Button.displayName = 'Button';
+export default function Button({
+  variant = 'primary',
+  size = 'md',
+  loading = false,
+  fullWidth = false,
+  children,
+  disabled,
+  style,
+  ...props
+}: ButtonProps) {
+  return (
+    <button
+      disabled={disabled || loading}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        fontFamily: 'var(--font-body)',
+        fontWeight: '500',
+        letterSpacing: '0.02em',
+        cursor: disabled || loading ? 'not-allowed' : 'pointer',
+        transition: 'all var(--transition)',
+        opacity: disabled || loading ? 0.5 : 1,
+        width: fullWidth ? '100%' : 'auto',
+        whiteSpace: 'nowrap',
+        ...variants[variant],
+        ...sizes[size],
+        ...style,
+      }}
+      {...props}
+    >
+      {loading && (
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          style={{ animation: 'spin 0.8s linear infinite' }}
+        >
+          <path d="M21 12a9 9 0 11-6.219-8.56" />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </svg>
+      )}
+      {children}
+    </button>
+  );
+}

@@ -42,7 +42,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        final String jwt = authHeader.substring(BEARER_PREFIX.length());
+        final String jwt = authHeader.substring(BEARER_PREFIX.length()).trim();
+
+        if (!StringUtils.hasText(jwt) || jwt.chars().filter(ch -> ch == '.').count() != 2) {
+            log.debug("Malformed Bearer token received");
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         try {
             if (jwtService.isTokenValid(jwt) && !jwtService.isTokenExpired(jwt)) {

@@ -1,163 +1,169 @@
 'use client';
+
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Eye, EyeOff, ArrowRight, CheckCircle2 } from 'lucide-react';
-import { authService } from '@/services';
-import { useAuthStore } from '@/lib/store/authStore';
-import { Button } from '@/components/ui/Button';
-import { extractApiError } from '@/lib/apiClient';
-import toast from 'react-hot-toast';
-import { motion } from 'framer-motion';
+import Link from 'next/link';
 
-const schema = z.object({
-  fullName: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Enter a valid email'),
-  phone: z.string().regex(/^\+?[0-9]{7,15}$/, 'Enter a valid phone number').optional().or(z.literal('')),
-  password: z.string().min(8, 'At least 8 characters').regex(/[A-Z]/, 'Needs uppercase').regex(/[a-z]/, 'Needs lowercase').regex(/[0-9]/, 'Needs number'),
-  confirmPassword: z.string(),
-  terms: z.boolean().refine(v => v, 'You must accept the terms'),
-}).refine(d => d.password === d.confirmPassword, { message: 'Passwords do not match', path: ['confirmPassword'] });
+const INPUT = {
+  width: '100%', padding: '12px 16px',
+  background: 'rgba(8, 20, 40, 0.8)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-md)',
+  color: '#F5F5F0', fontSize: '14px', outline: 'none',
+  WebkitTextFillColor: '#F5F5F0', caretColor: '#c9a84c',
+  transition: 'border-color var(--transition)',
+} as React.CSSProperties;
 
-type F = z.infer<typeof schema>;
-
-const FIELD: React.CSSProperties = {
-  backgroundColor: '#141414', color: '#F5F5F0', WebkitTextFillColor: '#F5F5F0',
-  caretColor: '#B8933A', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px',
-  fontSize: '14px', outline: 'none', width: '100%', height: '46px', padding: '0 14px',
-  transition: 'border-color 0.2s, box-shadow 0.2s',
-};
-
-function StrengthBar({ password }: { password: string }) {
-  const checks = [
-    { label: '8+ chars', ok: password.length >= 8 },
-    { label: 'Uppercase', ok: /[A-Z]/.test(password) },
-    { label: 'Lowercase', ok: /[a-z]/.test(password) },
-    { label: 'Number', ok: /[0-9]/.test(password) },
+function pwStrength(pw: string): { score: number; label: string; color: string } {
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  const map = [
+    { label: '', color: 'transparent' },
+    { label: 'Weak', color: '#f87171' },
+    { label: 'Fair', color: '#fbbf24' },
+    { label: 'Good', color: '#60a5fa' },
+    { label: 'Strong', color: '#34d399' },
   ];
-  const score = checks.filter(c => c.ok).length;
-  if (!password) return null;
-  const colors = ['#ef4444','#f97316','#eab308','#22c55e'];
-  return (
-    <div style={{ marginTop: '8px' }}>
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '6px' }}>
-        {[0,1,2,3].map(i => (
-          <div key={i} style={{ flex: 1, height: '2px', borderRadius: '2px', background: i < score ? colors[score-1] : 'rgba(255,255,255,0.08)', transition: 'background 0.3s' }} />
-        ))}
-      </div>
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-        {checks.map(({ label, ok }) => (
-          <span key={label} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: ok ? '#22c55e' : '#5A5A55', transition: 'color 0.2s' }}>
-            <CheckCircle2 size={11} />{label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
+  return { score, ...map[score] };
 }
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { setAuth } = useAuthStore();
-  const [showPass, setShowPass] = useState(false);
-  const [passVal, setPassVal] = useState('');
-  const { register, handleSubmit, formState: { errors, isSubmitting }, setError, watch } = useForm<F>({ resolver: zodResolver(schema) });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Partial<typeof form>>({});
 
-  const onSubmit = async (data: F) => {
-    try {
-      const res = await authService.register({ fullName: data.fullName, email: data.email, phone: data.phone || '', password: data.password });
-      setAuth({ userId: res.userId, email: res.email, fullName: res.fullName, role: res.role as any }, res.accessToken, res.refreshToken);
-      toast.success('Account created! Welcome to SOUL x TIME.');
-      router.push('/');
-    } catch (err) { setError('root', { message: extractApiError(err) }); }
+  const pw = pwStrength(form.password);
+
+  const validate = () => {
+    const e: Partial<typeof form> = {};
+    if (!form.name.trim()) e.name = 'Name is required';
+    if (!form.email.includes('@')) e.email = 'Valid email required';
+    if (!form.phone.match(/^\+?[\d\s\-]{7,15}$/)) e.phone = 'Valid phone required';
+    if (form.password.length < 8) e.password = 'At least 8 characters';
+    if (form.password !== form.confirmPassword) e.confirmPassword = 'Passwords do not match';
+    setFieldErrors(e);
+    return Object.keys(e).length === 0;
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setLoading(true); setError(null);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.name, email: form.email, phone: form.phone, password: form.password }),
+      });
+      if (res.status === 409) throw new Error('Email already registered.');
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message ?? 'Registration failed.'); }
+      const data = await res.json();
+      if (!data.token || typeof data.token !== 'string' || data.token.length < 10) {
+        throw new Error('Invalid response from server. Please try again.');
+      }
+      const userName = data.name || form.name || 'User';
+      localStorage.setItem('sxt_token', data.token);
+      localStorage.setItem('sxt_user', JSON.stringify({ name: userName, role: data.role || 'CUSTOMER', id: data.id }));
+      window.dispatchEvent(new Event('auth-updated'));
+      router.push('/');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'An error occurred.');
+    } finally { setLoading(false); }
+  };
+
+  const Field = ({ label, name, type = 'text', placeholder, extra }: { label: string; name: keyof typeof form; type?: string; placeholder: string; extra?: React.ReactNode }) => (
+    <div>
+      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</label>
+      <input
+        type={type}
+        value={form[name]}
+        onChange={e => setForm(f => ({ ...f, [name]: e.target.value }))}
+        placeholder={placeholder}
+        style={{ ...INPUT, borderColor: fieldErrors[name] ? '#f87171' : 'var(--border)' }}
+        onFocus={e => { (e.target as HTMLInputElement).style.borderColor = fieldErrors[name] ? '#f87171' : 'var(--border-active)'; }}
+        onBlur={e => { (e.target as HTMLInputElement).style.borderColor = fieldErrors[name] ? '#f87171' : 'var(--border)'; }}
+      />
+      {fieldErrors[name] && <p style={{ fontSize: '12px', color: '#f87171', marginTop: '4px' }}>{fieldErrors[name]}</p>}
+      {extra}
+    </div>
+  );
+
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#080808', padding: '40px 24px' }}>
-      <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55, ease: [0,0,0.2,1] }} style={{ width: '100%', maxWidth: '460px' }}>
-        <Link href="/" style={{ display: 'block', fontFamily: "'Playfair Display',serif", fontSize: '20px', letterSpacing: '0.15em', color: '#F5F5F0', textDecoration: 'none', marginBottom: '48px' }}>
-          SOUL<span style={{ background: 'linear-gradient(135deg,#C4A24A,#E8C96A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', margin: '0 6px' }}>×</span>TIME
-        </Link>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)', padding: '24px', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: '30%', left: '50%', transform: 'translate(-50%, -50%)', width: '500px', height: '500px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(61,143,212,0.04) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
-        <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: '30px', color: '#F5F5F0', fontWeight: 400, marginBottom: '6px' }}>Create account</h1>
-        <p style={{ fontSize: '14px', color: '#5A5A55', marginBottom: '36px' }}>Join the SOUL x TIME collection experience</p>
+      <div style={{ width: '100%', maxWidth: '460px', position: 'relative', zIndex: 1 }}>
+        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+          <Link href="/"><img src="/afino-logo.svg" alt="SOUL x TIME" style={{ width: '44px', height: '44px', margin: '0 auto 10px', filter: 'invert(1) sepia(1) saturate(2) hue-rotate(185deg) brightness(1.3)' }} /></Link>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: '600', letterSpacing: '0.15em', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>SOUL × TIME</div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '6px' }}>Create your account</p>
+        </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {[
-            { name: 'fullName',  label: 'Full Name',   type: 'text',     placeholder: 'Your full name',    auto: 'name' },
-            { name: 'email',     label: 'Email',        type: 'email',    placeholder: 'you@example.com',   auto: 'email' },
-            { name: 'phone',     label: 'Phone (opt.)', type: 'tel',      placeholder: '+91 98765 43210',   auto: 'tel' },
-          ].map(({ name, label, type, placeholder, auto }) => (
-            <div key={name}>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '7px' }}>{label}</label>
-              <input type={type} placeholder={placeholder} autoComplete={auto}
-                {...register(name as any)}
-                style={{ ...FIELD, borderColor: (errors as any)[name] ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)' }}
-                onFocus={e => { e.target.style.borderColor = '#B8933A'; e.target.style.boxShadow = '0 0 0 3px rgba(184,147,58,0.1)'; }}
-                onBlur={e => { e.target.style.borderColor = (errors as any)[name] ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none'; }}
-              />
-              {(errors as any)[name] && <p style={{ fontSize: '12px', color: '#f87171', marginTop: '4px' }}>{(errors as any)[name].message}</p>}
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)', padding: '36px', boxShadow: 'var(--shadow-lg)' }}>
+          {error && <div style={{ padding: '12px 16px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius-md)', color: '#f87171', fontSize: '14px', marginBottom: '20px' }}>{error}</div>}
+
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <Field label="Full Name" name="name" placeholder="Your full name" />
+            <Field label="Email" name="email" type="email" placeholder="you@example.com" />
+            <Field label="Phone" name="phone" placeholder="+91 98765 43210" />
+
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  value={form.password}
+                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                  placeholder="Min. 8 characters"
+                  style={{ ...INPUT, paddingRight: '46px', borderColor: fieldErrors.password ? '#f87171' : 'var(--border)' }}
+                  onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }}
+                  onBlur={e => { (e.target as HTMLInputElement).style.borderColor = fieldErrors.password ? '#f87171' : 'var(--border)'; }}
+                />
+                <button type="button" onClick={() => setShowPw(v => !v)}
+                  style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '16px', padding: '4px' }}>
+                  {showPw ? '🙈' : '👁'}
+                </button>
+              </div>
+              {form.password && (
+                <div style={{ marginTop: '8px' }}>
+                  <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
+                    {[1, 2, 3, 4].map(i => (
+                      <div key={i} style={{ flex: 1, height: '3px', borderRadius: '2px', background: i <= pw.score ? pw.color : 'var(--border)', transition: 'background var(--transition)' }} />
+                    ))}
+                  </div>
+                  {pw.label && <p style={{ fontSize: '11px', color: pw.color }}>{pw.label} password</p>}
+                </div>
+              )}
+              {fieldErrors.password && <p style={{ fontSize: '12px', color: '#f87171', marginTop: '4px' }}>{fieldErrors.password}</p>}
             </div>
-          ))}
 
-          {/* Password */}
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '7px' }}>Password</label>
-            <div style={{ position: 'relative' }}>
-              <input type={showPass ? 'text' : 'password'} placeholder="Create a strong password" autoComplete="new-password"
-                {...register('password', { onChange: e => setPassVal(e.target.value) })}
-                style={{ ...FIELD, paddingRight: '44px', borderColor: errors.password ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)' }}
-                onFocus={e => { e.target.style.borderColor = '#B8933A'; e.target.style.boxShadow = '0 0 0 3px rgba(184,147,58,0.1)'; }}
-                onBlur={e => { e.target.style.borderColor = errors.password ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none'; }}
-              />
-              <button type="button" onClick={() => setShowPass(v => !v)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#5A5A55', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            {errors.password && <p style={{ fontSize: '12px', color: '#f87171', marginTop: '4px' }}>{errors.password.message}</p>}
-            <StrengthBar password={passVal} />
-          </div>
+            <Field label="Confirm Password" name="confirmPassword" type={showPw ? 'text' : 'password'} placeholder="Re-enter password" />
 
-          {/* Confirm */}
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '7px' }}>Confirm Password</label>
-            <input type="password" placeholder="Repeat your password" autoComplete="new-password"
-              {...register('confirmPassword')}
-              style={{ ...FIELD, borderColor: errors.confirmPassword ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)' }}
-              onFocus={e => { e.target.style.borderColor = '#B8933A'; e.target.style.boxShadow = '0 0 0 3px rgba(184,147,58,0.1)'; }}
-              onBlur={e => { e.target.style.borderColor = errors.confirmPassword ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none'; }}
-            />
-            {errors.confirmPassword && <p style={{ fontSize: '12px', color: '#f87171', marginTop: '4px' }}>{errors.confirmPassword.message}</p>}
-          </div>
+            <button type="submit" disabled={loading}
+              style={{ width: '100%', padding: '13px', background: 'var(--gold-gradient)', color: '#000', fontWeight: '700', fontSize: '14px', borderRadius: 'var(--radius-md)', border: 'none', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '4px' }}>
+              {loading && <div style={{ width: 14, height: 14, border: '2px solid rgba(0,0,0,0.3)', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
+              {loading ? 'Creating account…' : 'Create Account'}
+            </button>
+          </form>
 
-          {/* Terms */}
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer' }}>
-            <input type="checkbox" {...register('terms')} style={{ marginTop: '2px', width: '16px', height: '16px', accentColor: '#B8933A', flexShrink: 0 }} />
-            <span style={{ fontSize: '13px', color: '#5A5A55', lineHeight: 1.65 }}>
-              I agree to the <span style={{ color: '#B8933A' }}>Terms of Service</span> and <span style={{ color: '#B8933A' }}>Privacy Policy</span>
-            </span>
-          </label>
-          {errors.terms && <p style={{ fontSize: '12px', color: '#f87171' }}>{errors.terms.message}</p>}
+          <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '14px', color: 'var(--text-muted)' }}>
+            Already have an account?{' '}
+            <Link href="/login" style={{ color: 'var(--blue-bright)', fontWeight: '500', textDecoration: 'none' }}>Sign in</Link>
+          </p>
+        </div>
 
-          {errors.root && (
-            <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)', fontSize: '13px', color: '#f87171' }}>
-              {errors.root.message}
-            </div>
-          )}
-
-          <Button type="submit" variant="gold" size="lg" fullWidth loading={isSubmitting} style={{ marginTop: '4px', gap: '8px' }}>
-            Create Account <ArrowRight size={15} />
-          </Button>
-        </form>
-
-        <p style={{ textAlign: 'center', fontSize: '13px', color: '#5A5A55', marginTop: '28px' }}>
-          Already have an account?{' '}
-          <Link href="/login" style={{ color: '#B8933A', textDecoration: 'none' }}>Sign in</Link>
+        <p style={{ textAlign: 'center', marginTop: '20px' }}>
+          <Link href="/" style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none' }}>← Back to store</Link>
         </p>
-      </motion.div>
+      </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

@@ -1,196 +1,128 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { adminService } from '@/services';
-import { Button, StatusBadge, LoadingSpinner, Pagination, Select, EmptyState } from '@/components/ui';
-import { formatCurrency, formatDateTime, prStatusLabel, prStatusColor } from '@/utils';
-import { Eye, FileText, ShoppingCart, Search } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import toast from 'react-hot-toast';
-import { PurchaseRequestResponse } from '@/types';
+import StatusBadge from '@/components/ui/StatusBadge';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
-const STATUS_FILTERS = [
-  { value: '', label: 'All Statuses' },
-  { value: 'REQUESTED', label: 'Requested' },
-  { value: 'UNDER_REVIEW', label: 'Under Review' },
-  { value: 'BILL_GENERATED', label: 'Bill Generated' },
-  { value: 'CANCELLED', label: 'Cancelled' },
-  { value: 'COMPLETED', label: 'Completed' },
-];
+interface PurchaseRequest {
+  id: string;
+  requestNumber: string;
+  customerName: string;
+  customerPhone: string;
+  status: string;
+  total: number;
+  itemCount: number;
+  createdAt: string;
+}
+
+interface Page<T> { content: T[]; totalElements: number; totalPages: number; number: number; }
+
+const fmt = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+const fmtDate = (s: string) => new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+const STATUSES = ['', 'REQUESTED', 'UNDER_REVIEW', 'BILL_GENERATED', 'PAID', 'CANCELLED'];
 
 export default function AdminPurchaseRequestsPage() {
-  const qc = useQueryClient();
+  const [page, setPage] = useState<Page<PurchaseRequest> | null>(null);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
-  const [page, setPage] = useState(0);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['admin-requests', { search, status, page }],
-    queryFn: () => adminService.listPurchaseRequests({ search, status, page, size: 20 }),
-    staleTime: 30_000,
-    placeholderData: (prev) => prev,
-  });
+  const fetchRequests = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const token = localStorage.getItem('sxt_token');
+      const params = new URLSearchParams({ page: String(currentPage), size: '10', sort: 'createdAt,desc' });
+      if (search) params.set('search', search);
+      if (statusFilter) params.set('status', statusFilter);
 
-  const updateStatusMutation = useMutation({
-    mutationFn: ({ id, newStatus }: { id: number; newStatus: string }) =>
-      adminService.updateRequestStatus(id, newStatus),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-requests'] });
-      toast.success('Status updated');
-    },
-    onError: () => toast.error('Could not update status'),
-  });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/purchase-requests?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      setPage(await res.json());
+    } catch { setError('Failed to load requests.'); }
+    finally { setLoading(false); }
+  }, [currentPage, search, statusFilter]);
 
-  const handleSearch = useCallback((val: string) => {
-    setSearch(val);
-    setPage(0);
-  }, []);
+  useEffect(() => { fetchRequests(); }, [fetchRequests]);
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="font-serif text-2xl text-white">Purchase Requests</h1>
-          <p className="text-[#888] text-sm">{data?.totalElements ?? 0} total requests</p>
-        </div>
+    <div style={{ maxWidth: '1300px', margin: '0 auto' }}>
+      <div style={{ marginBottom: '28px' }}>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.4rem, 3vw, 2rem)', fontWeight: '700', color: 'var(--text-primary)' }}>Purchase Requests</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>Review customer requests and generate bills.</p>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: '#888' }} />
-          <input
-            type="text"
-            placeholder="Search reference ID, customer name..."
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            style={{
-              width: '100%', height: '40px',
-              paddingLeft: '2.5rem', paddingRight: '1rem',
-              borderRadius: '0.5rem', border: '1px solid #1E1E1E',
-              backgroundColor: '#161616', color: '#FAFAFA',
-              WebkitTextFillColor: '#FAFAFA', caretColor: '#B8933A',
-              fontSize: '0.875rem', outline: 'none',
-            }}
-            onFocus={e => { e.target.style.borderColor = '#B8933A'; }}
-            onBlur={e => { e.target.style.borderColor = '#1E1E1E'; }}
-          />
-        </div>
-        <Select
-          options={STATUS_FILTERS}
-          value={status}
-          onChange={(e) => { setStatus(e.target.value); setPage(0); }}
-          className="w-44"
-        />
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <input type="text" placeholder="Search by customer, request #…" value={search}
+          onChange={e => { setSearch(e.target.value); setCurrentPage(0); }}
+          style={{ flex: '1 1 220px', padding: '10px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', WebkitTextFillColor: 'var(--text-primary)' }} />
+        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(0); }}
+          style={{ padding: '10px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none' }}>
+          {STATUSES.map(s => <option key={s} value={s}>{s || 'All Statuses'}</option>)}
+        </select>
       </div>
 
-      {/* Table */}
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : !data?.content.length ? (
-        <EmptyState
-          icon={<ShoppingCart className="w-12 h-12" />}
-          title={search || status ? 'No requests match your filters' : 'No purchase requests yet'}
-          description={search || status
-            ? 'Try adjusting your search or status filter.'
-            : 'Customer purchase requests will appear here once submitted.'}
-        />
-      ) : (
-        <>
-          <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #1E1E1E' }}>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead style={{ borderBottom: '1px solid #1E1E1E', background: 'rgba(255,255,255,0.02)' }}>
-                  <tr className="text-[#888] text-xs uppercase tracking-wider">
-                    <th className="text-left px-5 py-3 font-medium">Reference</th>
-                    <th className="text-left px-5 py-3 font-medium">Customer</th>
-                    <th className="text-right px-5 py-3 font-medium">Amount</th>
-                    <th className="text-right px-5 py-3 font-medium">Items</th>
-                    <th className="text-left px-5 py-3 font-medium">Status</th>
-                    <th className="text-left px-5 py-3 font-medium">Date</th>
-                    <th className="px-5 py-3 font-medium text-right">Actions</th>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+        {loading ? <LoadingSpinner message="Loading requests…" /> : error ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#f87171' }}>{error}</div>
+        ) : (
+          <>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(8,20,40,0.5)' }}>
+                    {['Request #', 'Customer', 'Items', 'Total', 'Status', 'Date', 'Action'].map(h => (
+                      <th key={h} style={{ padding: '12px 16px', textAlign: h === 'Total' || h === 'Items' ? 'right' : 'left', fontSize: '11px', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {data.content.map((pr: PurchaseRequestResponse) => (
-                    <tr key={pr.id}
-                      className="hover:bg-white/2 transition-colors"
-                      style={{ borderTop: '1px solid #1E1E1E' }}>
-                      <td className="px-5 py-4">
-                        <span className="font-mono text-xs text-white">{pr.referenceId}</span>
+                  {(page?.content ?? []).length === 0 ? (
+                    <tr><td colSpan={7} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>No purchase requests found.</td></tr>
+                  ) : (page?.content ?? []).map((req, i) => (
+                    <tr key={req.id} style={{ borderBottom: i < (page!.content.length - 1) ? '1px solid var(--border)' : 'none' }}>
+                      <td style={{ padding: '14px 16px', fontWeight: '700', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '13px' }}>#{req.requestNumber}</td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{req.customerName}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{req.customerPhone}</div>
                       </td>
-                      <td className="px-5 py-4">
-                        <p className="text-white font-medium">{pr.customerName}</p>
-                        <p className="text-xs text-[#888]">{pr.customerPhone}</p>
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <span className="font-serif text-white">{formatCurrency(pr.totalAmount)}</span>
-                      </td>
-                      <td className="px-5 py-4 text-right text-[#888]">{pr.items.length}</td>
-                      <td className="px-5 py-4">
-                        <StatusBadge label={prStatusLabel(pr.status)} colorClass={prStatusColor(pr.status)} />
-                      </td>
-                      <td className="px-5 py-4 text-[#888] text-xs whitespace-nowrap">
-                        {formatDateTime(pr.createdAt)}
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* View detail */}
-                          <Link href={`/admin/purchase-requests/${pr.id}`}>
-                            <button className="p-1.5 rounded-lg hover:bg-white/10 text-[#888] hover:text-white transition-colors" title="View request">
-                              <Eye className="w-4 h-4" />
-                            </button>
-                          </Link>
-                          {/* Quick: mark as Under Review */}
-                          {pr.status === 'REQUESTED' && (
-                            <button
-                              onClick={() => updateStatusMutation.mutate({ id: pr.id, newStatus: 'UNDER_REVIEW' })}
-                              disabled={updateStatusMutation.isPending}
-                              className="px-2.5 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
-                              style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}
-                              title="Mark as Under Review"
-                            >
-                              Review
-                            </button>
-                          )}
-                          {/* Generate bill quick link */}
-                          {!pr.billId && !['CANCELLED', 'COMPLETED'].includes(pr.status) && (
-                            <Link href={`/admin/bills/new?requestId=${pr.id}`}>
-                              <button
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors"
-                                style={{ background: 'rgba(184,147,58,0.1)', color: '#B8933A' }}
-                                title="Generate bill"
-                              >
-                                <FileText className="w-3 h-3" /> Bill
-                              </button>
-                            </Link>
-                          )}
-                          {/* Link to existing bill */}
-                          {pr.billId && (
-                            <Link href={`/admin/bills/${pr.billId}`}>
-                              <button
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors"
-                                style={{ background: 'rgba(34,197,94,0.1)', color: '#4ade80' }}
-                                title="View bill"
-                              >
-                                <FileText className="w-3 h-3" /> View Bill
-                              </button>
-                            </Link>
-                          )}
-                        </div>
+                      <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-secondary)' }}>{req.itemCount}</td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: '700', color: 'var(--gold)' }}>{fmt(req.total)}</td>
+                      <td style={{ padding: '14px 16px' }}><StatusBadge status={req.status} size="sm" /></td>
+                      <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '13px', whiteSpace: 'nowrap' }}>{fmtDate(req.createdAt)}</td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <Link href={`/admin/purchase-requests/${req.id}`}
+                          style={{ padding: '5px 12px', fontSize: '12px', background: 'rgba(61,143,212,0.1)', border: '1px solid rgba(61,143,212,0.3)', borderRadius: 'var(--radius-sm)', color: 'var(--blue-bright)', textDecoration: 'none' }}>
+                          Review
+                        </Link>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
 
-          <Pagination page={page} totalPages={data.totalPages} onPageChange={setPage} />
-        </>
-      )}
+            {page && page.totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{page.totalElements} request{page.totalElements !== 1 ? 's' : ''}</span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 0}
+                    style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'none', color: 'var(--text-secondary)', cursor: currentPage === 0 ? 'default' : 'pointer', opacity: currentPage === 0 ? 0.4 : 1 }}>←</button>
+                  <span style={{ padding: '6px 12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{currentPage + 1} / {page.totalPages}</span>
+                  <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= page.totalPages - 1}
+                    style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'none', color: 'var(--text-secondary)', cursor: currentPage >= page.totalPages - 1 ? 'default' : 'pointer', opacity: currentPage >= page.totalPages - 1 ? 0.4 : 1 }}>→</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

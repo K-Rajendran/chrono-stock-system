@@ -1,165 +1,125 @@
 'use client';
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { adminService } from '@/services';
-import { Button, StatusBadge, LoadingSpinner, Modal, Select, Input, EmptyState, Pagination } from '@/components/ui';
-import { formatDateTime } from '@/utils';
-import { AlertTriangle, Package, BarChart2, ArrowRight, Search } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import toast from 'react-hot-toast';
-import { cn } from '@/utils';
+import StatusBadge from '@/components/ui/StatusBadge';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
-const stockBadge = (s: string) => ({
-  IN_STOCK:     { label: 'In Stock',     cls: 'text-green-400 bg-green-400/10' },
-  LOW_STOCK:    { label: 'Low Stock',    cls: 'text-yellow-400 bg-yellow-400/10' },
-  OUT_OF_STOCK: { label: 'Out of Stock', cls: 'text-red-400 bg-red-400/10' },
-}[s] ?? { label: s, cls: 'text-[#888] bg-[#888]/10' });
-
-export default function AdminInventoryPage() {
-  const qc = useQueryClient();
-
-  const { data: lowStock, isLoading: lowLoading, refetch: refetchLow } = useQuery({
-    queryKey: ['low-stock'],
-    queryFn: adminService.getLowStock,
-    staleTime: 60_000,
-  });
-
-  const { data: outOfStock, isLoading: outLoading, refetch: refetchOut } = useQuery({
-    queryKey: ['out-of-stock'],
-    queryFn: adminService.getOutOfStock,
-    staleTime: 60_000,
-  });
-
-  const refetchAll = () => { refetchLow(); refetchOut(); };
-
-  return (
-    <div className="space-y-8 pb-12">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-2xl text-white">Inventory</h1>
-          <p className="text-[#888] text-sm">Monitor stock levels and adjust quantities</p>
-        </div>
-        <Button variant="glass" size="sm" onClick={refetchAll} className="gap-2">
-          <BarChart2 className="w-4 h-4" /> Refresh
-        </Button>
-      </div>
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          { label: 'Low Stock',    value: lowStock?.length ?? '—', color: 'text-yellow-400' },
-          { label: 'Out of Stock', value: outOfStock?.length ?? '—', color: 'text-red-400' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="rounded-xl p-4 text-center"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1E1E1E' }}>
-            <p className={cn('font-serif text-3xl font-bold', color)}>{value}</p>
-            <p className="text-xs text-[#888] mt-1">{label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Low Stock Table */}
-      <ProductTable
-        title="Low Stock Alerts"
-        icon={<AlertTriangle className="w-4 h-4 text-yellow-400" />}
-        products={lowStock ?? []}
-        isLoading={lowLoading}
-        emptyMessage="All stock levels are healthy."
-      />
-
-      {/* Out of Stock Table */}
-      <ProductTable
-        title="Out of Stock"
-        icon={<Package className="w-4 h-4 text-red-400" />}
-        products={outOfStock ?? []}
-        isLoading={outLoading}
-        emptyMessage="No out-of-stock products."
-      />
-    </div>
-  );
+interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  brand: string;
+  stockQuantity: number;
+  lowStockThreshold: number;
+  stockStatus: string;
 }
 
-function ProductTable({
-  title, icon, products, isLoading, emptyMessage,
-}: {
-  title: string; icon: React.ReactNode;
-  products: any[]; isLoading: boolean; emptyMessage: string;
-}) {
-  return (
-    <div>
-      <h2 className="text-xs text-[#888] uppercase tracking-wider font-medium flex items-center gap-2 mb-4">
-        {icon} {title} ({products.length})
-      </h2>
+interface Page<T> { content: T[]; totalElements: number; totalPages: number; number: number; }
 
-      {isLoading ? <LoadingSpinner /> : !products.length ? (
-        <div className="rounded-xl p-6 text-center text-sm text-[#888]"
-          style={{ border: '1px solid #1E1E1E', background: 'rgba(255,255,255,0.01)' }}>
-          {emptyMessage}
-        </div>
-      ) : (
-        <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #1E1E1E' }}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead style={{ borderBottom: '1px solid #1E1E1E', background: 'rgba(255,255,255,0.02)' }}>
-                <tr className="text-[#888] text-xs uppercase tracking-wider">
-                  <th className="text-left px-5 py-3 font-medium">Product</th>
-                  <th className="text-left px-5 py-3 font-medium">SKU</th>
-                  <th className="text-right px-5 py-3 font-medium">Stock</th>
-                  <th className="text-right px-5 py-3 font-medium">Threshold</th>
-                  <th className="text-left px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 text-right font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((p: any) => {
-                  const badge = stockBadge(p.stockStatus);
-                  return (
-                    <tr key={p.id} className="hover:bg-white/2 transition-colors"
-                      style={{ borderTop: '1px solid #1E1E1E' }}>
-                      <td className="px-5 py-4">
-                        <p className="font-medium text-white">{p.name}</p>
-                        {p.brand && <p className="text-xs text-[#888]">{p.brand}</p>}
+export default function AdminInventoryPage() {
+  const [page, setPage] = useState<Page<Product> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchProducts = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const token = localStorage.getItem('sxt_token');
+      const params = new URLSearchParams({ page: String(currentPage), size: '15', sort: 'name,asc' });
+      if (search) params.set('search', search);
+      if (statusFilter) params.set('stockStatus', statusFilter);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      setPage(await res.json());
+    } catch { setError('Failed to load inventory.'); }
+    finally { setLoading(false); }
+  }, [currentPage, search, statusFilter]);
+
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+
+  const STOCK_STATUSES = ['', 'IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK'];
+
+  return (
+    <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+      <div style={{ marginBottom: '28px' }}>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.4rem, 3vw, 2rem)', fontWeight: '700', color: 'var(--text-primary)' }}>Inventory</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>Monitor and adjust product stock levels.</p>
+      </div>
+
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <input type="text" placeholder="Search products…" value={search}
+          onChange={e => { setSearch(e.target.value); setCurrentPage(0); }}
+          style={{ flex: '1 1 220px', padding: '10px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', WebkitTextFillColor: 'var(--text-primary)' }} />
+        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(0); }}
+          style={{ padding: '10px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none' }}>
+          {STOCK_STATUSES.map(s => <option key={s} value={s}>{s || 'All Stock Status'}</option>)}
+        </select>
+      </div>
+
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+        {loading ? <LoadingSpinner message="Loading inventory…" /> : error ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#f87171' }}>{error}</div>
+        ) : (
+          <>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(8,20,40,0.5)' }}>
+                    {['Product', 'SKU', 'Current Stock', 'Threshold', 'Status', 'Manage'].map(h => (
+                      <th key={h} style={{ padding: '12px 16px', textAlign: h === 'Current Stock' || h === 'Threshold' ? 'right' : 'left', fontSize: '11px', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(page?.content ?? []).length === 0 ? (
+                    <tr><td colSpan={6} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>No products found.</td></tr>
+                  ) : (page?.content ?? []).map((p, i) => (
+                    <tr key={p.id} style={{ borderBottom: i < (page!.content.length - 1) ? '1px solid var(--border)' : 'none' }}>
+                      <td style={{ padding: '14px 16px' }}>
+                        <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{p.name}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{p.brand}</div>
                       </td>
-                      <td className="px-5 py-4 text-[#888] font-mono text-xs">{p.sku}</td>
-                      <td className="px-5 py-4 text-right">
-                        <span className={cn('font-bold text-base',
-                          p.stockQuantity === 0 ? 'text-red-400' :
-                          p.stockQuantity <= p.lowStockThreshold ? 'text-yellow-400' : 'text-white')}>
+                      <td style={{ padding: '14px 16px', color: 'var(--text-secondary)', fontFamily: 'monospace', fontSize: '12px' }}>{p.sku}</td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                        <span style={{ fontWeight: '700', fontSize: '18px', color: p.stockStatus === 'OUT_OF_STOCK' ? '#f87171' : p.stockStatus === 'LOW_STOCK' ? '#fbbf24' : '#34d399' }}>
                           {p.stockQuantity}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-right text-[#888]">{p.lowStockThreshold}</td>
-                      <td className="px-5 py-4">
-                        <StatusBadge label={badge.label} colorClass={badge.cls} />
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          {/* Link to per-product inventory detail page */}
-                          <Link href={`/admin/inventory/${p.id}`}>
-                            <button className="p-1.5 rounded-lg hover:bg-white/10 text-[#888] hover:text-white transition-colors"
-                              title="View history & adjust">
-                              <BarChart2 className="w-4 h-4" />
-                            </button>
-                          </Link>
-                          <Link href={`/admin/inventory/${p.id}`}>
-                            <button className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                              style={{ background: 'rgba(184,147,58,0.1)', color: '#B8933A' }}
-                              title="Adjust stock">
-                              Restock <ArrowRight className="w-3 h-3" />
-                            </button>
-                          </Link>
-                        </div>
+                      <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-muted)', fontSize: '13px' }}>{p.lowStockThreshold}</td>
+                      <td style={{ padding: '14px 16px' }}><StatusBadge status={p.stockStatus} size="sm" /></td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <Link href={`/admin/inventory/${p.id}`}
+                          style={{ padding: '6px 14px', fontSize: '12px', background: 'rgba(61,143,212,0.1)', border: '1px solid rgba(61,143,212,0.3)', borderRadius: 'var(--radius-sm)', color: 'var(--blue-bright)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                          Adjust →
+                        </Link>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {page && page.totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{page.totalElements} products</span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 0}
+                    style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'none', color: 'var(--text-secondary)', cursor: currentPage === 0 ? 'default' : 'pointer', opacity: currentPage === 0 ? 0.4 : 1 }}>←</button>
+                  <span style={{ padding: '6px 12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{currentPage + 1} / {page.totalPages}</span>
+                  <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= page.totalPages - 1}
+                    style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'none', color: 'var(--text-secondary)', cursor: currentPage >= page.totalPages - 1 ? 'default' : 'pointer', opacity: currentPage >= page.totalPages - 1 ? 0.4 : 1 }}>→</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

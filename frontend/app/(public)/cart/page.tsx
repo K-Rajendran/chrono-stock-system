@@ -1,179 +1,210 @@
 'use client';
-import { useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import Link from 'next/link';
-import { Trash2, ShoppingBag, ArrowRight, ArrowLeft } from 'lucide-react';
-import { cartService, purchaseRequestService } from '@/services';
-import { LoadingSpinner, EmptyState, QuantitySelector } from '@/components/ui';
-import { Button } from '@/components/ui/Button';
-import { useAuthStore } from '@/lib/store/authStore';
-import { useCartStore } from '@/lib/store/cartStore';
-import { motion, AnimatePresence } from 'framer-motion';
-import toast from 'react-hot-toast';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+
+interface CartItem {
+  id: string;
+  name: string;
+  price: number;
+  image?: string;
+  quantity: number;
+}
+
+const fmt = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 
 export default function CartPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
-  const { setItemCount } = useCartStore();
-  const qc = useQueryClient();
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
-  useEffect(() => { if (!isAuthenticated) router.push('/login'); }, [isAuthenticated, router]);
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  const { data: cart, isLoading } = useQuery({ queryKey: ['cart'], queryFn: cartService.get, enabled: isAuthenticated });
+  useEffect(() => {
+    try {
+      setItems(JSON.parse(localStorage.getItem('sxt_cart') ?? '[]'));
+    } catch { setItems([]); }
+  }, []);
 
-  useEffect(() => { if (cart) setItemCount(cart.itemCount); }, [cart, setItemCount]);
+  const updateQty = (id: string, delta: number) => {
+    setItems(prev => {
+      const next = prev.map(i => i.id === id ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i);
+      localStorage.setItem('sxt_cart', JSON.stringify(next));
+      window.dispatchEvent(new Event('cart-updated'));
+      return next;
+    });
+  };
 
-  const updateMut = useMutation({
-    mutationFn: ({ productId, quantity }: { productId: number; quantity: number }) => cartService.updateItem(productId, quantity),
-    onSuccess: d => { qc.setQueryData(['cart'], d); setItemCount(d.itemCount); },
-    onError: (e: any) => toast.error(e?.response?.data?.message || 'Update failed'),
-  });
-  const removeMut = useMutation({
-    mutationFn: (id: number) => cartService.removeItem(id),
-    onSuccess: d => { qc.setQueryData(['cart'], d); setItemCount(d.itemCount); toast.success('Item removed'); },
-  });
-  const clearMut = useMutation({
-    mutationFn: cartService.clear,
-    onSuccess: d => { qc.setQueryData(['cart'], d); setItemCount(0); toast.success('Cart cleared'); },
-  });
-  const requestMut = useMutation({
-    mutationFn: purchaseRequestService.createFromCart,
-    onSuccess: d => { qc.setQueryData(['cart'], { items:[], itemCount:0, subtotal:0, totalDiscount:0, finalAmount:0 }); setItemCount(0); toast.success('Purchase request created!'); router.push(`/purchase-requests/${d.id}`); },
-    onError: (e: any) => toast.error(e?.response?.data?.message || 'Could not create request'),
-  });
+  const remove = (id: string) => {
+    setItems(prev => {
+      const next = prev.filter(i => i.id !== id);
+      localStorage.setItem('sxt_cart', JSON.stringify(next));
+      window.dispatchEvent(new Event('cart-updated'));
+      return next;
+    });
+  };
 
-  if (!isAuthenticated) return null;
-  if (isLoading) return <div style={{ background: '#080808', minHeight: '100vh', paddingTop: '68px' }}><LoadingSpinner size="lg" /></div>;
+  const clear = () => {
+    setItems([]);
+    localStorage.removeItem('sxt_cart');
+    window.dispatchEvent(new Event('cart-updated'));
+  };
 
-  const items = cart?.items ?? [];
+  const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
+
+  const handlePurchaseRequest = async () => {
+    const userStr = localStorage.getItem('sxt_user');
+    const token = localStorage.getItem('sxt_token');
+    if (!userStr || !token) { router.push('/login'); return; }
+
+    setSubmitting(true);
+    try {
+      const user = JSON.parse(userStr);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchase-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          items: items.map(i => ({ productId: i.id, quantity: i.quantity })),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message ?? 'Could not submit request.');
+      }
+
+      const data = await res.json();
+
+      // Build WhatsApp message
+      const msg = encodeURIComponent(
+        `*SOUL × TIME — Purchase Request #${data.requestNumber}*\n\n` +
+        `Customer: ${user.name}\n\n` +
+        `*Items:*\n` +
+        items.map(i => `• ${i.name} × ${i.quantity} — ${fmt(i.price * i.quantity)}`).join('\n') +
+        `\n\nTotal: *${fmt(subtotal)}*\n` +
+        `Request ID: ${data.requestNumber}\n\n` +
+        `Please confirm availability and send bill. Thank you!`
+      );
+
+      // Clear cart
+      clear();
+      showToast('Purchase request submitted!');
+
+      // Open WhatsApp (if configured) or redirect
+      if (data.whatsappUrl) window.open(data.whatsappUrl, '_blank');
+      else {
+        const ownerNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '';
+        window.open(`https://wa.me/${ownerNumber}?text=${msg}`, '_blank');
+      }
+
+      setTimeout(() => router.push(`/purchase-requests/${data.id}`), 800);
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Submission failed.');
+    } finally { setSubmitting(false); }
+  };
 
   return (
-    <div style={{ background: '#080808', minHeight: '100vh', paddingTop: '68px' }}>
-      <div className="container-wide" style={{ paddingTop: '48px', paddingBottom: '80px' }}>
-
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '40px', flexWrap: 'wrap', gap: '12px' }}>
-          <div>
-            <p style={{ fontSize: '10px', letterSpacing: '0.4em', textTransform: 'uppercase', color: '#B8933A', fontWeight: 600, marginBottom: '8px' }}>Your Selection</p>
-            <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 'clamp(28px,3.5vw,42px)', color: '#F5F5F0', fontWeight: 400 }}>
-              Cart {items.length > 0 && <span style={{ color: '#5A5A55', fontSize: '70%' }}>({items.length})</span>}
-            </h1>
-          </div>
-          {items.length > 0 && (
-            <button onClick={() => clearMut.mutate()} disabled={clearMut.isPending} style={{ fontSize: '13px', color: '#5A5A55', cursor: 'pointer', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '6px', transition: 'color 0.2s' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#f87171'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#5A5A55'}>
-              <Trash2 size={14} /> Clear all
-            </button>
-          )}
+    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '120px 24px 80px' }}>
+      {toast && (
+        <div style={{ position: 'fixed', bottom: '24px', right: '24px', padding: '12px 20px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', zIndex: 9999, boxShadow: 'var(--shadow-lg)' }}>
+          {toast}
         </div>
+      )}
 
-        {items.length === 0 ? (
-          <EmptyState icon={<ShoppingBag size={52} />} title="Your cart is empty"
-            description="Discover our collection of handcrafted timepieces."
-            action={<Link href="/products"><Button variant="gold" size="lg">Explore Collection</Button></Link>}
-          />
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '32px' }} className="lg:grid-cols-3">
+      <div style={{ marginBottom: '36px' }}>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.8rem, 3vw, 2.5rem)', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '4px' }}>Your Cart</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{items.length} item{items.length !== 1 ? 's' : ''}</p>
+      </div>
 
-            {/* Items col */}
-            <div style={{ gridColumn: 'span 2' }}>
-              <AnimatePresence>
-                {items.map(item => (
-                  <motion.div key={item.productId} layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} style={{ display: 'flex', gap: '20px', padding: '20px', borderRadius: '16px', background: '#141414', border: '1px solid rgba(255,255,255,0.07)', marginBottom: '12px' }}>
-                    {/* Thumb */}
-                    <Link href={`/products/${item.productId}`} style={{ flexShrink: 0, width: '88px', height: '88px', borderRadius: '12px', overflow: 'hidden', background: '#1A1A1A', textDecoration: 'none', display: 'block' }}>
-                      {item.primaryImageUrl
-                        ? <Image src={item.primaryImageUrl} alt={item.productName} width={88} height={88} className="w-full h-full object-cover" />
-                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display',serif", color: 'rgba(255,255,255,0.1)', fontSize: '18px' }}>ST</div>}
-                    </Link>
-
-                    {/* Info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '6px' }}>
-                        <div style={{ minWidth: 0 }}>
-                          {item.brand && <p style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#B8933A', marginBottom: '3px' }}>{item.brand}</p>}
-                          <Link href={`/products/${item.productId}`} style={{ fontFamily: "'Playfair Display',serif", fontSize: '16px', color: '#F5F5F0', textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'color 0.2s' }}
-                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#B8933A'}
-                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#F5F5F0'}>
-                            {item.productName}
-                          </Link>
-                        </div>
-                        <button onClick={() => removeMut.mutate(item.productId)} disabled={removeMut.isPending} style={{ padding: '6px', borderRadius: '8px', cursor: 'pointer', border: 'none', background: 'transparent', color: '#5A5A55', flexShrink: 0, transition: 'all 0.15s' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'; (e.currentTarget as HTMLElement).style.color = '#f87171'; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#5A5A55'; }}>
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginTop: '12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                          <span style={{ fontFamily: "'Playfair Display',serif", fontSize: '16px', fontWeight: 600, background: 'linear-gradient(135deg,#C4A24A,#E8C96A 45%,#9A7A2A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                            ₹{item.effectivePrice.toLocaleString('en-IN')}
-                          </span>
-                          {item.discountAmount > 0 && <span style={{ fontSize: '13px', color: '#5A5A55', textDecoration: 'line-through' }}>₹{item.sellingPrice.toLocaleString('en-IN')}</span>}
-                        </div>
-                        <QuantitySelector value={item.quantity} min={1} max={item.stockQuantity}
-                          onChange={v => updateMut.mutate({ productId: item.productId, quantity: v })} />
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
-                        <span style={{ fontSize: '12px', color: '#5A5A55' }}>
-                          Line total: <span style={{ color: '#A0A09A', fontWeight: 500 }}>₹{item.lineTotal.toLocaleString('en-IN')}</span>
-                        </span>
-                        {item.lineDiscount > 0 && <span style={{ fontSize: '12px', color: '#22c55e' }}>−₹{item.lineDiscount.toLocaleString('en-IN')} saved</span>}
-                      </div>
+      {items.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '80px 40px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)' }}>
+          <div style={{ fontSize: '56px', marginBottom: '16px' }}>🛒</div>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '22px', color: 'var(--text-primary)', marginBottom: '8px' }}>Your cart is empty</h3>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '28px' }}>Discover our curated collection of luxury timepieces.</p>
+          <Link href="/products" style={{ display: 'inline-block', padding: '13px 28px', background: 'var(--gold-gradient)', color: '#000', fontWeight: '700', fontSize: '14px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
+            Browse Collection →
+          </Link>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '28px', alignItems: 'start' }}>
+          {/* Items */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {items.map(item => (
+              <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '16px', alignItems: 'center', padding: '16px 20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
+                <div style={{ width: '80px', height: '80px', background: 'linear-gradient(135deg, #0d1f3c, #0a1628)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                  {item.image ? <img src={item.image} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: '32px' }}>⌚</span>}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                  <div>
+                    <Link href={`/products/${item.id}`} style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', textDecoration: 'none', display: 'block', marginBottom: '4px' }}>{item.name}</Link>
+                    <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--gold)' }}>{fmt(item.price)}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                      <button onClick={() => updateQty(item.id, -1)} style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '16px' }}>−</button>
+                      <span style={{ width: '36px', textAlign: 'center', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>{item.quantity}</span>
+                      <button onClick={() => updateQty(item.id, 1)} style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '16px' }}>+</button>
                     </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+                    <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', minWidth: '80px', textAlign: 'right' }}>{fmt(item.price * item.quantity)}</div>
+                    <button onClick={() => remove(item.id)} style={{ width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius-sm)', color: '#f87171', cursor: 'pointer', fontSize: '14px' }}>×</button>
+                  </div>
+                </div>
+              </div>
+            ))}
 
-              <Link href="/products" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#5A5A55', textDecoration: 'none', marginTop: '8px', transition: 'color 0.2s' }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#A0A09A'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#5A5A55'}>
-                <ArrowLeft size={14} /> Continue Shopping
-              </Link>
+            <button onClick={clear} style={{ alignSelf: 'flex-start', padding: '8px 16px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', fontSize: '13px', cursor: 'pointer' }}>
+              Clear Cart
+            </button>
+          </div>
+
+          {/* Summary */}
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)', padding: '28px', position: 'sticky', top: '100px' }}>
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '20px' }}>Order Summary</h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+              {items.map(item => (
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>{item.name} × {item.quantity}</span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{fmt(item.price * item.quantity)}</span>
+                </div>
+              ))}
             </div>
 
-            {/* Summary */}
-            <div>
-              <div style={{ position: 'sticky', top: '88px', background: '#141414', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px', padding: '28px' }}>
-                <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: '20px', color: '#F5F5F0', fontWeight: 400, marginBottom: '24px' }}>Order Summary</h2>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                    <span style={{ color: '#5A5A55' }}>Subtotal ({cart?.itemCount} items)</span>
-                    <span style={{ color: '#A0A09A' }}>₹{cart?.subtotal?.toLocaleString('en-IN')}</span>
-                  </div>
-                  {(cart?.totalDiscount ?? 0) > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                      <span style={{ color: '#5A5A55' }}>Discount</span>
-                      <span style={{ color: '#22c55e' }}>−₹{cart?.totalDiscount?.toLocaleString('en-IN')}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: '16px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ fontSize: '15px', color: '#A0A09A', fontWeight: 500 }}>Total</span>
-                  <span style={{ fontFamily: "'Playfair Display',serif", fontSize: '24px', fontWeight: 600, background: 'linear-gradient(135deg,#C4A24A,#E8C96A 45%,#9A7A2A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                    ₹{cart?.finalAmount?.toLocaleString('en-IN')}
-                  </span>
-                </div>
-
-                <Button variant="gold" size="lg" fullWidth loading={requestMut.isPending}
-                  onClick={() => requestMut.mutate()} style={{ gap: '8px' }}>
-                  Request Purchase <ArrowRight size={15} />
-                </Button>
-                <p style={{ fontSize: '11px', color: '#5A5A55', textAlign: 'center', marginTop: '14px', lineHeight: 1.6 }}>
-                  Your request will be sent to our team for review and billing.
-                </p>
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: '700' }}>
+                <span style={{ color: 'var(--text-primary)' }}>Total</span>
+                <span style={{ background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{fmt(subtotal)}</span>
               </div>
             </div>
+
+            <button onClick={handlePurchaseRequest} disabled={submitting}
+              style={{ width: '100%', padding: '14px', background: 'var(--gold-gradient)', color: '#000', fontWeight: '700', fontSize: '15px', borderRadius: 'var(--radius-md)', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: 'var(--shadow-gold)', marginBottom: '12px' }}>
+              {submitting && <div style={{ width: 14, height: 14, border: '2px solid rgba(0,0,0,0.3)', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
+              {submitting ? 'Submitting…' : '📱 Request via WhatsApp'}
+            </button>
+
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', lineHeight: '1.5' }}>
+              Your request will be sent to us via WhatsApp. We'll confirm and send you a bill.
+            </p>
+
+            <Link href="/products" style={{ display: 'block', textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'var(--text-secondary)', textDecoration: 'none' }}>
+              ← Continue Shopping
+            </Link>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 768px) {
+          div[style*="grid-template-columns: 1fr 340px"] {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

@@ -1,198 +1,258 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { productService } from '@/services';
-import { ProductCard } from '@/components/ui/ProductCard';
-import { SkeletonCard, Pagination, Select, EmptyState } from '@/components/ui';
-import { SlidersHorizontal, X, Search } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
+import { useSearchParams, useRouter } from 'next/navigation';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
-const SORT_OPTIONS = [
-  { value: 'createdAt,desc',    label: 'Newest First' },
-  { value: 'sellingPrice,asc',  label: 'Price: Low → High' },
-  { value: 'sellingPrice,desc', label: 'Price: High → Low' },
-  { value: 'name,asc',          label: 'Name: A–Z' },
-];
+interface Product {
+  id: string;
+  name: string;
+  brand: string;
+  category: string;
+  sellingPrice: number;
+  effectivePrice: number;
+  discountValue: number;
+  discountType: string;
+  discountAmount: number;
+  stockStatus: string;
+  primaryImageUrl?: string;
+  featured: boolean;
+  isNew: boolean;
+}
 
-const STOCK_OPTIONS = [
-  { value: '',          label: 'All Availability' },
-  { value: 'IN_STOCK',  label: 'In Stock' },
-  { value: 'LOW_STOCK', label: 'Low Stock' },
-];
+interface Category { id: string; name: string; }
+interface Page<T> { content: T[]; totalElements: number; totalPages: number; number: number; }
 
-const INLINE_INPUT: React.CSSProperties = {
-  backgroundColor: '#141414', color: '#F5F5F0',
-  WebkitTextFillColor: '#F5F5F0', caretColor: '#B8933A',
-  border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px',
-  fontSize: '14px', outline: 'none', width: '100%',
-  transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-};
+const fmt = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+
+function ProductCard({ product }: { product: Product }) {
+  const [hovered, setHovered] = useState(false);
+  const hasDiscount = product.discountValue > 0 && product.effectivePrice < product.sellingPrice;
+
+  return (
+    <Link href={`/products/${product.id}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex', flexDirection: 'column',
+        background: hovered ? 'rgba(13, 32, 64, 0.9)' : 'var(--bg-card)',
+        border: `1px solid ${hovered ? 'rgba(61,143,212,0.35)' : 'var(--border)'}`,
+        borderRadius: 'var(--radius-lg)', overflow: 'hidden', textDecoration: 'none',
+        transition: 'all var(--transition)',
+        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
+        boxShadow: hovered ? '0 12px 40px rgba(0,0,0,0.35)' : 'var(--shadow-sm)',
+      }}>
+      {/* Image */}
+      <div style={{ height: '220px', background: 'linear-gradient(135deg, #0d1f3c 0%, #0a1628 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+        {product.primaryImageUrl ? (
+          <img src={product.primaryImageUrl} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform var(--transition-slow)', transform: hovered ? 'scale(1.05)' : 'scale(1)' }} />
+        ) : (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '56px', opacity: 0.7 }}>⌚</div>
+          </div>
+        )}
+        {/* Badges */}
+        <div style={{ position: 'absolute', top: '10px', left: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          {product.isNew && <span style={{ padding: '3px 8px', background: 'var(--gold-gradient)', color: '#000', fontSize: '10px', fontWeight: '700', borderRadius: '10px' }}>NEW</span>}
+          {hasDiscount && <span style={{ padding: '3px 8px', background: 'rgba(239,68,68,0.9)', color: 'white', fontSize: '10px', fontWeight: '700', borderRadius: '10px' }}>
+            -{product.discountType === 'PERCENTAGE' ? `${product.discountValue}%` : fmt(product.discountValue)}
+          </span>}
+        </div>
+        {product.stockStatus === 'OUT_OF_STOCK' && (
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ color: '#f87171', fontSize: '13px', fontWeight: '700', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Out of Stock</span>
+          </div>
+        )}
+      </div>
+      {/* Info */}
+      <div style={{ padding: '18px' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{product.brand} · {product.category}</div>
+        <div style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', lineHeight: 1.3 }}>{product.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '18px', fontWeight: '700', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+            {fmt(product.effectivePrice)}
+          </span>
+          {hasDiscount && <span style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'line-through' }}>{fmt(product.sellingPrice)}</span>}
+        </div>
+        {product.stockStatus === 'LOW_STOCK' && (
+          <div style={{ marginTop: '8px', fontSize: '11px', color: '#fbbf24', fontWeight: '500' }}>⚠ Low stock</div>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+// Skeleton card
+function SkeletonCard() {
+  return (
+    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+      <div style={{ height: '220px', background: 'linear-gradient(90deg, var(--bg-elevated) 25%, rgba(255,255,255,0.02) 50%, var(--bg-elevated) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }} />
+      <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={{ height: '12px', background: 'var(--bg-elevated)', borderRadius: '6px', width: '60%' }} />
+        <div style={{ height: '16px', background: 'var(--bg-elevated)', borderRadius: '6px' }} />
+        <div style={{ height: '20px', background: 'var(--bg-elevated)', borderRadius: '6px', width: '40%' }} />
+      </div>
+      <style>{`@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }`}</style>
+    </div>
+  );
+}
 
 export default function ProductsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const pathname = usePathname();
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [localSearch, setLocalSearch] = useState(searchParams.get('search') ?? '');
 
-  const gp = (k: string, fb = '') => searchParams.get(k) ?? fb;
-  const search      = gp('search');
-  const categoryId  = gp('categoryId') ? Number(gp('categoryId')) : undefined;
-  const minPrice    = gp('minPrice')   ? Number(gp('minPrice'))   : undefined;
-  const maxPrice    = gp('maxPrice')   ? Number(gp('maxPrice'))   : undefined;
-  const stockStatus = gp('stockStatus');
-  const page        = Number(gp('page', '0'));
-  const sortRaw     = gp('sort', 'createdAt,desc');
-  const [sortBy, sortDir] = sortRaw.split(',');
+  const [page, setPage] = useState<Page<Product> | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const upd = useCallback((key: string, value: string | undefined) => {
-    const p = new URLSearchParams(searchParams.toString());
-    value ? p.set(key, value) : p.delete(key);
-    p.set('page', '0');
-    router.replace(`${pathname}?${p.toString()}`, { scroll: false });
-  }, [searchParams, router, pathname]);
+  const [search, setSearch] = useState(searchParams.get('search') ?? '');
+  const [category, setCategory] = useState(searchParams.get('category') ?? '');
+  const [sort, setSort] = useState('createdAt,desc');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
 
-  const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: productService.getCategories });
-  const { data, isLoading } = useQuery({
-    queryKey: ['products', { search, categoryId, minPrice, maxPrice, stockStatus, page, sortBy, sortDir }],
-    queryFn: () => productService.list({ search, categoryId, minPrice, maxPrice, stockStatus, page, size: 12, sortBy, sortDir }),
-    staleTime: 30_000, placeholderData: (p: any) => p,
-  });
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/categories`).then(r => r.json()).then(setCategories).catch(() => {});
+  }, []);
 
-  const hasFilters = !!(search || categoryId || minPrice || maxPrice || stockStatus);
-  const clearAll = () => { setLocalSearch(''); router.replace(pathname, { scroll: false }); };
+  const fetchProducts = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const params = new URLSearchParams({ page: String(currentPage), size: '12', sort });
+      if (search) params.set('search', search);
+      if (category) params.set('category', category);
+      if (minPrice) params.set('minPrice', minPrice);
+      if (maxPrice) params.set('maxPrice', maxPrice);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/products?${params}`);
+      if (!res.ok) throw new Error();
+      setPage(await res.json());
+    } catch { setError('Could not load products.'); }
+    finally { setLoading(false); }
+  }, [currentPage, search, category, sort, minPrice, maxPrice]);
+
+  useEffect(() => { setCurrentPage(0); }, [search, category, sort, minPrice, maxPrice]);
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+
+  const SORTS = [
+    { value: 'createdAt,desc', label: 'Newest' },
+    { value: 'effectivePrice,asc', label: 'Price: Low → High' },
+    { value: 'effectivePrice,desc', label: 'Price: High → Low' },
+    { value: 'name,asc', label: 'Name A–Z' },
+  ];
 
   return (
-    <div style={{ background: '#080808', minHeight: '100vh', paddingTop: '68px' }}>
-      <div className="container-wide" style={{ paddingTop: '48px', paddingBottom: '80px' }}>
+    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '120px 24px 80px' }}>
+      {/* Header */}
+      <div style={{ marginBottom: '40px' }}>
+        <p style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--blue-bright)', marginBottom: '8px' }}>Curated Selection</p>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'var(--text-primary)' }}>Our Collection</h1>
+        {page && <p style={{ color: 'var(--text-muted)', marginTop: '8px', fontSize: '14px' }}>{page.totalElements} timepiece{page.totalElements !== 1 ? 's' : ''}</p>}
+      </div>
 
-        {/* Page header */}
-        <div style={{ marginBottom: '40px' }}>
-          <p style={{ fontSize: '10px', letterSpacing: '0.4em', textTransform: 'uppercase', color: '#B8933A', fontWeight: 600, marginBottom: '10px' }}>Collection</p>
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-            <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 'clamp(28px,3.5vw,42px)', color: '#F5F5F0', fontWeight: 400 }}>All Timepieces</h1>
-            {data && <p style={{ fontSize: '13px', color: '#5A5A55' }}>{data.totalElements} piece{data.totalElements !== 1 ? 's' : ''}</p>}
-          </div>
+      {/* Search + controls */}
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 240px', position: 'relative' }}>
+          <svg width="16" height="16" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24"
+            style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }}>
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search timepieces…"
+            style={{ width: '100%', padding: '10px 16px 10px 40px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', WebkitTextFillColor: 'var(--text-primary)' }} />
         </div>
 
-        {/* Toolbar */}
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '28px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {/* Search */}
-          <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
-            <Search style={{ position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)', width: '15px', height: '15px', color: '#5A5A55', pointerEvents: 'none' }} />
-            <input
-              type="text" placeholder="Search watches, brands…"
-              value={localSearch}
-              onChange={e => setLocalSearch(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && upd('search', localSearch)}
-              onBlur={() => upd('search', localSearch)}
-              style={{ ...INLINE_INPUT, height: '42px', paddingLeft: '40px', paddingRight: '14px' }}
-              onFocus={e => { e.target.style.borderColor = '#B8933A'; e.target.style.boxShadow = '0 0 0 3px rgba(184,147,58,0.1)'; }}
-            />
-          </div>
+        <select value={sort} onChange={e => setSort(e.target.value)}
+          style={{ padding: '10px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none' }}>
+          {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
 
-          {/* Sort */}
-          <div style={{ position: 'relative', minWidth: '190px' }}>
-            <select value={sortRaw} onChange={e => upd('sort', e.target.value)}
-              style={{ ...INLINE_INPUT, height: '42px', padding: '0 32px 0 14px', appearance: 'none', cursor: 'pointer' }}
-              onFocus={e => { e.target.style.borderColor = '#B8933A'; }}
-              onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}>
-              {SORT_OPTIONS.map(o => <option key={o.value} value={o.value} style={{ background: '#1A1A1A' }}>{o.label}</option>)}
+        <button onClick={() => setShowFilters(v => !v)}
+          style={{ padding: '10px 16px', background: showFilters ? 'rgba(61,143,212,0.12)' : 'var(--bg-card)', border: `1px solid ${showFilters ? 'var(--border-active)' : 'var(--border)'}`, borderRadius: 'var(--radius-md)', color: showFilters ? 'var(--blue-bright)' : 'var(--text-secondary)', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="4" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="12" y1="18" x2="16" y2="18"/></svg>
+          Filters
+        </button>
+      </div>
+
+      {/* Filters panel */}
+      {showFilters && (
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', padding: '16px 20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 160px' }}>
+            <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Category</label>
+            <select value={category} onChange={e => setCategory(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '13px', outline: 'none' }}>
+              <option value="">All Categories</option>
+              {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
-            <svg style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', width: '14px', height: '14px', color: '#5A5A55', pointerEvents: 'none' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" /></svg>
           </div>
-
-          {/* Filter toggle */}
-          <button onClick={() => setFiltersOpen(v => !v)} style={{
-            display: 'flex', alignItems: 'center', gap: '7px', height: '42px', padding: '0 16px',
-            borderRadius: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: 500,
-            border: filtersOpen || hasFilters ? '1px solid rgba(184,147,58,0.5)' : '1px solid rgba(255,255,255,0.08)',
-            background: filtersOpen || hasFilters ? 'rgba(184,147,58,0.07)' : '#141414',
-            color: filtersOpen || hasFilters ? '#B8933A' : 'rgba(245,245,240,0.6)',
-            transition: 'all 0.2s',
-          }}>
-            <SlidersHorizontal size={14} /> Filters
-            {hasFilters && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#B8933A', flexShrink: 0 }} />}
-          </button>
-
-          {hasFilters && (
-            <button onClick={clearAll} style={{
-              display: 'flex', alignItems: 'center', gap: '5px', height: '42px', padding: '0 14px',
-              borderRadius: '10px', cursor: 'pointer', fontSize: '13px',
-              border: '1px solid rgba(239,68,68,0.25)', background: '#141414', color: '#f87171', transition: 'all 0.2s',
-            }}>
-              <X size={13} /> Clear
+          <div style={{ flex: '1 1 120px' }}>
+            <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Min Price (₹)</label>
+            <input type="number" value={minPrice} onChange={e => setMinPrice(e.target.value)} placeholder="0"
+              style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '13px', outline: 'none', WebkitTextFillColor: 'var(--text-primary)' }} />
+          </div>
+          <div style={{ flex: '1 1 120px' }}>
+            <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Max Price (₹)</label>
+            <input type="number" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} placeholder="Any"
+              style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '13px', outline: 'none', WebkitTextFillColor: 'var(--text-primary)' }} />
+          </div>
+          {(category || minPrice || maxPrice) && (
+            <button onClick={() => { setCategory(''); setMinPrice(''); setMaxPrice(''); }}
+              style={{ alignSelf: 'flex-end', padding: '8px 14px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', fontSize: '12px', cursor: 'pointer' }}>
+              Clear Filters
             </button>
           )}
         </div>
+      )}
 
-        {/* Filter panel */}
-        <AnimatePresence>
-          {filtersOpen && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }} style={{ overflow: 'hidden', marginBottom: '28px' }}>
-              <div style={{ padding: '20px', borderRadius: '14px', background: '#141414', border: '1px solid rgba(255,255,255,0.08)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '16px' }}>
-                {/* Category */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '6px' }}>Category</label>
-                  <div style={{ position: 'relative' }}>
-                    <select value={categoryId?.toString() ?? ''} onChange={e => upd('categoryId', e.target.value)}
-                      style={{ ...INLINE_INPUT, height: '40px', padding: '0 30px 0 12px', appearance: 'none', cursor: 'pointer' }}>
-                      <option value="" style={{ background: '#1A1A1A' }}>All Categories</option>
-                      {categories?.map(c => <option key={c.id} value={c.id} style={{ background: '#1A1A1A' }}>{c.name}</option>)}
-                    </select>
-                    <svg style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', width: '13px', height: '13px', color: '#5A5A55', pointerEvents: 'none' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" /></svg>
-                  </div>
-                </div>
-                {/* Min Price */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '6px' }}>Min Price (₹)</label>
-                  <input type="number" min={0} defaultValue={minPrice} placeholder="0" onBlur={e => upd('minPrice', e.target.value)}
-                    style={{ ...INLINE_INPUT, height: '40px', padding: '0 12px' }} />
-                </div>
-                {/* Max Price */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '6px' }}>Max Price (₹)</label>
-                  <input type="number" min={0} defaultValue={maxPrice} placeholder="Any" onBlur={e => upd('maxPrice', e.target.value)}
-                    style={{ ...INLINE_INPUT, height: '40px', padding: '0 12px' }} />
-                </div>
-                {/* Availability */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5A5A55', marginBottom: '6px' }}>Availability</label>
-                  <div style={{ position: 'relative' }}>
-                    <select value={stockStatus} onChange={e => upd('stockStatus', e.target.value)}
-                      style={{ ...INLINE_INPUT, height: '40px', padding: '0 30px 0 12px', appearance: 'none', cursor: 'pointer' }}>
-                      {STOCK_OPTIONS.map(o => <option key={o.value} value={o.value} style={{ background: '#1A1A1A' }}>{o.label}</option>)}
-                    </select>
-                    <svg style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', width: '13px', height: '13px', color: '#5A5A55', pointerEvents: 'none' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" /></svg>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Grid */}
-        {isLoading ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '20px' }}>
-            {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+      {/* Grid */}
+      {loading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px' }}>
+          {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      ) : error ? (
+        <div style={{ textAlign: 'center', padding: '80px', color: '#f87171' }}>
+          {error} <br />
+          <button onClick={fetchProducts} style={{ marginTop: '12px', padding: '8px 16px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', cursor: 'pointer' }}>Retry</button>
+        </div>
+      ) : (page?.content ?? []).length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '80px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⌚</div>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', color: 'var(--text-primary)', marginBottom: '8px' }}>No Timepieces Found</h3>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>Try adjusting your filters or search term.</p>
+          <button onClick={() => { setSearch(''); setCategory(''); setMinPrice(''); setMaxPrice(''); }}
+            style={{ padding: '10px 24px', background: 'rgba(61,143,212,0.1)', border: '1px solid var(--border-active)', borderRadius: 'var(--radius-md)', color: 'var(--blue-bright)', cursor: 'pointer', fontSize: '14px' }}>
+            Clear All Filters
+          </button>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+            {page!.content.map(p => <ProductCard key={p.id} product={p} />)}
           </div>
-        ) : !data?.content.length ? (
-          <EmptyState icon={<span style={{ fontSize: '56px' }}>⌚</span>}
-            title="No timepieces found"
-            description="Try adjusting your search or filters."
-            action={<button onClick={clearAll} style={{ color: '#B8933A', fontSize: '14px', textDecoration: 'underline', cursor: 'pointer' }}>Clear filters</button>}
-          />
-        ) : (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '20px' }}>
-              {data.content.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
+
+          {/* Pagination */}
+          {page!.totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 0}
+                style={{ padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'none', color: 'var(--text-secondary)', cursor: currentPage === 0 ? 'default' : 'pointer', opacity: currentPage === 0 ? 0.4 : 1 }}>← Prev</button>
+              {Array.from({ length: Math.min(5, page!.totalPages) }, (_, i) => {
+                const pg = currentPage < 3 ? i : currentPage - 2 + i;
+                if (pg >= page!.totalPages) return null;
+                return (
+                  <button key={pg} onClick={() => setCurrentPage(pg)}
+                    style={{ padding: '8px 14px', border: `1px solid ${pg === currentPage ? 'var(--border-active)' : 'var(--border)'}`, borderRadius: 'var(--radius-md)', background: pg === currentPage ? 'rgba(61,143,212,0.12)' : 'none', color: pg === currentPage ? 'var(--blue-bright)' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: pg === currentPage ? '600' : '400' }}>
+                    {pg + 1}
+                  </button>
+                );
+              })}
+              <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= page!.totalPages - 1}
+                style={{ padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'none', color: 'var(--text-secondary)', cursor: currentPage >= page!.totalPages - 1 ? 'default' : 'pointer', opacity: currentPage >= page!.totalPages - 1 ? 0.4 : 1 }}>Next →</button>
             </div>
-            <Pagination page={data.number} totalPages={data.totalPages} onPageChange={p => upd('page', p.toString())} />
-          </>
-        )}
-      </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

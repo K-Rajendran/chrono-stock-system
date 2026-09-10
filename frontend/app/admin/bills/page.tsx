@@ -1,250 +1,143 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { adminService } from '@/services';
-import { Button, StatusBadge, LoadingSpinner, Pagination, Select, EmptyState, Modal } from '@/components/ui';
-import { formatCurrency, formatDateTime, paymentStatusLabel, paymentStatusColor, billStatusLabel, billStatusColor } from '@/utils';
-import { Plus, Search, Eye, MessageCircle, XCircle, FileText } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import toast from 'react-hot-toast';
-import { BillResponse } from '@/types';
+import StatusBadge from '@/components/ui/StatusBadge';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
-const PAYMENT_FILTERS = [
-  { value: '', label: 'All Payments' },
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'PAID', label: 'Paid' },
-  { value: 'PARTIAL', label: 'Partial' },
-  { value: 'CANCELLED', label: 'Cancelled' },
-];
+interface Bill {
+  id: string;
+  billNumber: string;
+  customerName: string;
+  customerPhone: string;
+  finalTotal: number;
+  paymentStatus: string;
+  billStatus: string;
+  createdAt: string;
+  itemCount: number;
+}
 
-const BILL_STATUS_FILTERS = [
-  { value: '', label: 'All Statuses' },
-  { value: 'DRAFT', label: 'Draft' },
-  { value: 'ISSUED', label: 'Issued' },
-  { value: 'SENT', label: 'Sent' },
-  { value: 'PAID', label: 'Paid' },
-  { value: 'CANCELLED', label: 'Cancelled' },
-];
+interface Page<T> { content: T[]; totalElements: number; totalPages: number; number: number; }
+
+const fmt = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+const fmtDate = (s: string) => new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+const BILL_STATUSES = ['', 'PENDING', 'PAID', 'PARTIAL', 'CANCELLED'];
 
 export default function AdminBillsPage() {
-  const qc = useQueryClient();
+  const [page, setPage] = useState<Page<Bill> | null>(null);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [paymentStatus, setPaymentStatus] = useState('');
-  const [billStatus, setBillStatus] = useState('');
-  const [page, setPage] = useState(0);
-  const [cancelTarget, setCancelTarget] = useState<BillResponse | null>(null);
-  const [waResult, setWaResult] = useState<{ link: string; message: string } | null>(null);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['admin-bills', { search, paymentStatus, billStatus, page }],
-    queryFn: () => adminService.listBills({ search, paymentStatus, billStatus, page, size: 20 }),
-    staleTime: 30_000,
-    placeholderData: (prev) => prev,
-  });
+  const fetchBills = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('sxt_token');
+      const params = new URLSearchParams({ page: String(currentPage), size: '10', sort: 'createdAt,desc' });
+      if (search) params.set('search', search);
+      if (statusFilter) params.set('paymentStatus', statusFilter);
 
-  const cancelMutation = useMutation({
-    mutationFn: (id: number) => adminService.cancelBill(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-bills'] });
-      toast.success('Bill cancelled — stock returned to inventory');
-      setCancelTarget(null);
-    },
-    onError: (err: any) => toast.error(err?.response?.data?.message || 'Could not cancel bill'),
-  });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      setPage(await res.json());
+    } catch { setError('Failed to load bills.'); }
+    finally { setLoading(false); }
+  }, [currentPage, search, statusFilter]);
 
-  const whatsappMutation = useMutation({
-    mutationFn: (id: number) => adminService.sendBillWhatsApp(id),
-    onSuccess: (data) => {
-      setWaResult({ link: data.whatsappLink, message: data.message });
-      qc.invalidateQueries({ queryKey: ['admin-bills'] });
-    },
-    onError: () => toast.error('Could not generate WhatsApp message'),
-  });
-
-  const handleSearch = useCallback((val: string) => {
-    setSearch(val);
-    setPage(0);
-  }, []);
+  useEffect(() => { fetchBills(); }, [fetchBills]);
 
   return (
-    <div className="space-y-6 pb-12">
+    <div style={{ maxWidth: '1300px', margin: '0 auto' }}>
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="font-serif text-2xl text-white">Bills</h1>
-          <p className="text-[#888] text-sm">{data?.totalElements ?? 0} total bills</p>
-        </div>
-        <Link href="/admin/bills/new">
-          <Button variant="gold" size="sm" className="gap-2">
-            <Plus className="w-4 h-4" /> New Bill
-          </Button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', gap: '16px', flexWrap: 'wrap' }}>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.4rem, 3vw, 2rem)', fontWeight: '700', color: 'var(--text-primary)' }}>Bills</h1>
+        <Link href="/admin/bills/new"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'var(--gold-gradient)', color: '#000', fontWeight: '700', fontSize: '13px', borderRadius: 'var(--radius-md)', textDecoration: 'none', boxShadow: 'var(--shadow-gold)' }}>
+          + Create Bill
         </Link>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: '#888' }} />
-          <input
-            type="text"
-            placeholder="Search bill number, customer name..."
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            style={{
-              width: '100%', height: '40px',
-              paddingLeft: '2.5rem', paddingRight: '1rem',
-              borderRadius: '0.5rem', border: '1px solid #1E1E1E',
-              backgroundColor: '#161616', color: '#FAFAFA',
-              WebkitTextFillColor: '#FAFAFA', caretColor: '#B8933A',
-              fontSize: '0.875rem', outline: 'none',
-            }}
-            onFocus={e => { e.target.style.borderColor = '#B8933A'; }}
-            onBlur={e => { e.target.style.borderColor = '#1E1E1E'; }}
-          />
-        </div>
-        <Select options={PAYMENT_FILTERS} value={paymentStatus}
-          onChange={(e) => { setPaymentStatus(e.target.value); setPage(0); }} className="w-36" />
-        <Select options={BILL_STATUS_FILTERS} value={billStatus}
-          onChange={(e) => { setBillStatus(e.target.value); setPage(0); }} className="w-36" />
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          placeholder="Search by bill #, customer…"
+          value={search}
+          onChange={e => { setSearch(e.target.value); setCurrentPage(0); }}
+          style={{ flex: '1 1 220px', padding: '10px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', WebkitTextFillColor: 'var(--text-primary)' }}
+        />
+        <select
+          value={statusFilter}
+          onChange={e => { setStatusFilter(e.target.value); setCurrentPage(0); }}
+          style={{ padding: '10px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none' }}
+        >
+          {BILL_STATUSES.map(s => <option key={s} value={s}>{s || 'All Payment Statuses'}</option>)}
+        </select>
       </div>
 
       {/* Table */}
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : !data?.content.length ? (
-        <EmptyState
-          icon={<FileText className="w-12 h-12" />}
-          title={search || paymentStatus || billStatus ? 'No bills match your filters' : 'No bills yet'}
-          description={search || paymentStatus || billStatus
-            ? 'Try adjusting your search or filters.'
-            : 'Create your first bill from a purchase request.'}
-          action={
-            !search && !paymentStatus && !billStatus ? (
-              <Link href="/admin/bills/new">
-                <Button variant="gold" size="sm" className="gap-2">
-                  <Plus className="w-4 h-4" /> Create First Bill
-                </Button>
-              </Link>
-            ) : undefined
-          }
-        />
-      ) : (
-        <>
-          <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #1E1E1E' }}>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead style={{ borderBottom: '1px solid #1E1E1E', background: 'rgba(255,255,255,0.02)' }}>
-                  <tr className="text-[#888] text-xs uppercase tracking-wider">
-                    <th className="text-left px-5 py-3 font-medium">Bill #</th>
-                    <th className="text-left px-5 py-3 font-medium">Customer</th>
-                    <th className="text-right px-5 py-3 font-medium">Total</th>
-                    <th className="text-left px-5 py-3 font-medium">Payment</th>
-                    <th className="text-left px-5 py-3 font-medium">Status</th>
-                    <th className="text-left px-5 py-3 font-medium">Date</th>
-                    <th className="px-5 py-3 font-medium text-right">Actions</th>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+        {loading ? <LoadingSpinner message="Loading bills…" /> : error ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#f87171' }}>{error}</div>
+        ) : (
+          <>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(8,20,40,0.5)' }}>
+                    {['Bill #', 'Customer', 'Items', 'Total', 'Payment', 'Status', 'Date', 'Actions'].map(h => (
+                      <th key={h} style={{ padding: '12px 16px', textAlign: h === 'Total' || h === 'Items' ? 'right' : 'left', fontSize: '11px', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {data.content.map((bill: BillResponse) => (
-                    <tr key={bill.id}
-                      className="hover:bg-white/2 transition-colors"
-                      style={{ borderTop: '1px solid #1E1E1E' }}>
-                      <td className="px-5 py-4">
-                        <span className="font-mono text-xs text-white font-medium">{bill.billNumber}</span>
+                  {(page?.content ?? []).length === 0 ? (
+                    <tr><td colSpan={8} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>No bills found.</td></tr>
+                  ) : (page?.content ?? []).map((bill, i) => (
+                    <tr key={bill.id} style={{ borderBottom: i < (page!.content.length - 1) ? '1px solid var(--border)' : 'none' }}>
+                      <td style={{ padding: '14px 16px', fontWeight: '700', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '13px' }}>#{bill.billNumber}</td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{bill.customerName}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{bill.customerPhone}</div>
                       </td>
-                      <td className="px-5 py-4">
-                        <p className="text-white font-medium">{bill.customerName}</p>
-                        <p className="text-xs text-[#888]">{bill.customerPhone}</p>
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <span className="font-serif text-white">{formatCurrency(bill.finalTotal)}</span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <StatusBadge label={paymentStatusLabel(bill.paymentStatus)} colorClass={paymentStatusColor(bill.paymentStatus)} />
-                      </td>
-                      <td className="px-5 py-4">
-                        <StatusBadge label={billStatusLabel(bill.billStatus)} colorClass={billStatusColor(bill.billStatus)} />
-                      </td>
-                      <td className="px-5 py-4 text-[#888] text-xs whitespace-nowrap">
-                        {formatDateTime(bill.createdAt)}
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Link href={`/admin/bills/${bill.id}`}>
-                            <button className="p-1.5 rounded-lg hover:bg-white/10 text-[#888] hover:text-white transition-colors" title="View bill">
-                              <Eye className="w-4 h-4" />
-                            </button>
-                          </Link>
-                          {bill.billStatus !== 'CANCELLED' && (
-                            <>
-                              <button
-                                onClick={() => whatsappMutation.mutate(bill.id)}
-                                disabled={whatsappMutation.isPending}
-                                className="p-1.5 rounded-lg hover:bg-green-500/10 text-[#888] hover:text-green-400 transition-colors disabled:opacity-50"
-                                title="Send WhatsApp"
-                              >
-                                <MessageCircle className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => setCancelTarget(bill)}
-                                className="p-1.5 rounded-lg hover:bg-red-500/10 text-[#888] hover:text-red-400 transition-colors"
-                                title="Cancel bill"
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
-                        </div>
+                      <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-secondary)' }}>{bill.itemCount}</td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: '700', color: 'var(--gold)' }}>{fmt(bill.finalTotal)}</td>
+                      <td style={{ padding: '14px 16px' }}><StatusBadge status={bill.paymentStatus} size="sm" /></td>
+                      <td style={{ padding: '14px 16px' }}><StatusBadge status={bill.billStatus} size="sm" /></td>
+                      <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '13px', whiteSpace: 'nowrap' }}>{fmtDate(bill.createdAt)}</td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <Link href={`/admin/bills/${bill.id}`}
+                          style={{ padding: '5px 12px', fontSize: '12px', background: 'rgba(61,143,212,0.1)', border: '1px solid rgba(61,143,212,0.3)', borderRadius: 'var(--radius-sm)', color: 'var(--blue-bright)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                          View
+                        </Link>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
 
-          <Pagination page={page} totalPages={data.totalPages} onPageChange={setPage} />
-        </>
-      )}
-
-      {/* Cancel confirm */}
-      <Modal open={!!cancelTarget} onClose={() => setCancelTarget(null)} title="Cancel Bill" size="sm">
-        <div className="space-y-4">
-          <div className="p-4 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)' }}>
-            <p className="text-red-400 font-medium mb-1">This action cannot be undone.</p>
-            <p className="text-white/70">
-              Cancelling <strong>{cancelTarget?.billNumber}</strong> will return all stock to inventory.
-            </p>
-          </div>
-          <div className="flex gap-3 justify-end">
-            <Button variant="ghost" onClick={() => setCancelTarget(null)}>Go Back</Button>
-            <Button variant="danger" loading={cancelMutation.isPending}
-              onClick={() => cancelTarget && cancelMutation.mutate(cancelTarget.id)}>
-              Cancel Bill &amp; Return Stock
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* WhatsApp link modal */}
-      <Modal open={!!waResult} onClose={() => setWaResult(null)} title="WhatsApp Message Ready" size="lg">
-        {waResult && (
-          <div className="space-y-4">
-            <div className="rounded-xl p-4 overflow-auto max-h-64" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #1E1E1E' }}>
-              <pre className="text-white text-sm whitespace-pre-wrap font-sans leading-relaxed">{waResult.message}</pre>
-            </div>
-            <p className="text-[#888] text-xs">Click below to open WhatsApp with this pre-filled message.</p>
-            <div className="flex gap-3">
-              <Button variant="gold" fullWidth className="gap-2"
-                onClick={() => { window.open(waResult.link, '_blank'); setWaResult(null); }}>
-                <MessageCircle className="w-4 h-4" /> Open in WhatsApp
-              </Button>
-              <Button variant="ghost" onClick={() => setWaResult(null)}>Close</Button>
-            </div>
-          </div>
+            {page && page.totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{page.totalElements} bill{page.totalElements !== 1 ? 's' : ''}</span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 0}
+                    style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'none', color: 'var(--text-secondary)', cursor: currentPage === 0 ? 'default' : 'pointer', opacity: currentPage === 0 ? 0.4 : 1 }}>←</button>
+                  <span style={{ padding: '6px 12px', fontSize: '13px', color: 'var(--text-secondary)' }}>{currentPage + 1} / {page.totalPages}</span>
+                  <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= page.totalPages - 1}
+                    style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'none', color: 'var(--text-secondary)', cursor: currentPage >= page.totalPages - 1 ? 'default' : 'pointer', opacity: currentPage >= page.totalPages - 1 ? 0.4 : 1 }}>→</button>
+                </div>
+              </div>
+            )}
+          </>
         )}
-      </Modal>
+      </div>
     </div>
   );
 }

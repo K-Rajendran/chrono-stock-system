@@ -1,273 +1,867 @@
 'use client';
 
-import { Suspense, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { motion, useScroll, useTransform } from 'framer-motion';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, ChevronDown } from 'lucide-react';
-import { productService } from '@/services';
-import { ProductCard } from '@/components/ui/ProductCard';
-import { SkeletonCard } from '@/components/ui';
-import dynamic from 'next/dynamic';
 
-const WatchHero3D = dynamic(() => import('@/components/3d/WatchHero3D'), {
-  ssr: false,
-  loading: () => (
-    <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ width:'160px', height:'160px', borderRadius:'50%', border:'1px solid rgba(184,147,58,0.15)', animation:'pulse-ring 2s ease-out infinite' }} />
-    </div>
-  ),
-});
+// ── Animated ambient ring ──────────────────────────────────────────
+function AmbientRing({ size = 300, color = 'var(--blue-accent)', delay = '0s', opacity = 0.08 }) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        border: `1px solid ${color}`,
+        opacity,
+        animation: `pulse-ring 4s ease-in-out infinite ${delay}`,
+        pointerEvents: 'none',
+      }}
+    />
+  );
+}
 
-const FEATURES = [
-  { icon: '⌚', title: 'Swiss Movements', desc: 'Certified Swiss calibres in every timepiece.' },
-  { icon: '✦', title: 'Hand-Assembled', desc: 'Each watch individually crafted and inspected.' },
-  { icon: '◇', title: 'Authenticated', desc: 'Certificate of authenticity with every piece.' },
-  { icon: '◎', title: 'Insured Delivery', desc: 'White-glove delivery, fully insured.' },
-];
-
-export default function HomePage() {
-  const heroRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
-  const contentY   = useTransform(scrollYProgress, [0, 1], [0, 80]);
-  const contentOp  = useTransform(scrollYProgress, [0, 0.6], [1, 0]);
-  const canvasY    = useTransform(scrollYProgress, [0, 1], [0, 60]);
-
-  const { data: featured, isLoading } = useQuery({
-    queryKey: ['featured-products'],
-    queryFn: productService.getFeatured,
-    staleTime: 5 * 60_000,
-  });
-  const { data: categories } = useQuery({
-    queryKey: ['categories'],
-    queryFn: productService.getCategories,
-  });
+// ── Category card ──────────────────────────────────────────────────
+function CategoryCard({ emoji, title, count, href }: { emoji: string; title: string; count: string; href: string }) {
+  const [hovered, setHovered] = useState(false);
 
   return (
-    <div style={{ background: '#080808', overflowX: 'hidden' }}>
+    <Link
+      href={href}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        padding: '28px 24px',
+        background: hovered ? 'rgba(13, 32, 64, 0.9)' : 'rgba(8, 20, 40, 0.6)',
+        border: `1px solid ${hovered ? 'rgba(61,143,212,0.4)' : 'var(--border)'}`,
+        borderRadius: 'var(--radius-lg)',
+        cursor: 'pointer',
+        transition: 'all var(--transition)',
+        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
+        backdropFilter: 'blur(10px)',
+        boxShadow: hovered ? '0 8px 32px rgba(61,143,212,0.12)' : 'none',
+        textDecoration: 'none',
+      }}
+    >
+      <span style={{ fontSize: '32px', marginBottom: '12px' }}>{emoji}</span>
+      <span
+        style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: '17px',
+          fontWeight: '600',
+          color: 'var(--text-primary)',
+          marginBottom: '4px',
+        }}
+      >
+        {title}
+      </span>
+      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{count}</span>
+      <span
+        style={{
+          marginTop: '16px',
+          fontSize: '12px',
+          color: hovered ? 'var(--blue-bright)' : 'var(--text-muted)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          transition: 'color var(--transition)',
+          fontWeight: '500',
+        }}
+      >
+        Shop Now →
+      </span>
+    </Link>
+  );
+}
 
-      {/* ══════════════════════════════════════
-          HERO
-          ══════════════════════════════════════ */}
-      <section ref={heroRef} style={{
-        position: 'relative', height: '100vh', minHeight: '700px',
-        display: 'flex', alignItems: 'center', overflow: 'hidden',
-        background: 'radial-gradient(ellipse 80% 70% at 65% 40%, rgba(20,14,2,0.9) 0%, #080808 70%)',
-      }}>
+// ── Feature badge ──────────────────────────────────────────────────
+function FeatureBadge({ icon, label, sub }: { icon: string; label: string; sub: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '12px 20px',
+        background: 'rgba(8, 20, 40, 0.5)',
+        border: '1px solid var(--border)',
+        borderRadius: '40px',
+        backdropFilter: 'blur(10px)',
+      }}
+    >
+      <span style={{ fontSize: '18px' }}>{icon}</span>
+      <div>
+        <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>{label}</div>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{sub}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Product card ──────────────────────────────────────────────────
+function FeaturedProductCard({ name, price, tag, image }: { name: string; price: string; tag?: string; image?: string }) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: hovered ? 'rgba(13, 32, 64, 0.9)' : 'rgba(8, 20, 40, 0.7)',
+        border: `1px solid ${hovered ? 'rgba(61,143,212,0.35)' : 'var(--border)'}`,
+        borderRadius: 'var(--radius-lg)',
+        overflow: 'hidden',
+        transition: 'all var(--transition)',
+        transform: hovered ? 'translateY(-5px)' : 'translateY(0)',
+        boxShadow: hovered ? '0 12px 40px rgba(0,0,0,0.4), 0 0 30px rgba(61,143,212,0.08)' : 'var(--shadow-sm)',
+      }}
+    >
+      {/* Image placeholder */}
+      <div
+        style={{
+          height: '240px',
+          background: 'linear-gradient(135deg, #0d1f3c 0%, #152a4e 50%, #0a1628 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        {image ? (
+          <img src={image} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '64px', marginBottom: '8px' }}>⌚</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', letterSpacing: '0.1em' }}>PREMIUM WATCH</div>
+          </div>
+        )}
+        {tag && (
+          <span
+            style={{
+              position: 'absolute',
+              top: '12px',
+              left: '12px',
+              padding: '4px 10px',
+              background: 'var(--gold-gradient)',
+              color: '#000',
+              fontSize: '10px',
+              fontWeight: '700',
+              letterSpacing: '0.08em',
+              borderRadius: '12px',
+            }}
+          >
+            {tag}
+          </span>
+        )}
+      </div>
+
+      {/* Info */}
+      <div style={{ padding: '20px' }}>
+        <div
+          style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: '16px',
+            fontWeight: '600',
+            color: 'var(--text-primary)',
+            marginBottom: '8px',
+          }}
+        >
+          {name}
+        </div>
+        <div
+          style={{
+            fontSize: '18px',
+            fontWeight: '700',
+            background: 'var(--gold-gradient)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}
+        >
+          {price}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main HomePage ──────────────────────────────────────────────────
+export default function HomePage() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoError, setVideoError] = useState(false);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.play().catch(() => setVideoError(true));
+    }
+  }, []);
+
+  return (
+    <>
+      <style>{`
+        @keyframes pulse-ring {
+          0%, 100% { transform: scale(1); opacity: 0.08; }
+          50% { transform: scale(1.08); opacity: 0.16; }
+        }
+        @keyframes float-watch {
+          0%, 100% { transform: translateY(0px) rotate(-3deg); }
+          50% { transform: translateY(-12px) rotate(-1deg); }
+        }
+        @keyframes fade-in-up {
+          from { opacity: 0; transform: translateY(30px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        .hero-badge {
+          animation: fade-in-up 0.7s ease both;
+        }
+        .hero-title {
+          animation: fade-in-up 0.7s 0.15s ease both;
+        }
+        .hero-sub {
+          animation: fade-in-up 0.7s 0.3s ease both;
+        }
+        .hero-cta {
+          animation: fade-in-up 0.7s 0.45s ease both;
+        }
+        .hero-features {
+          animation: fade-in-up 0.7s 0.6s ease both;
+        }
+      `}</style>
+
+      {/* ── HERO SECTION ── */}
+      <section
+        style={{
+          position: 'relative',
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          overflow: 'hidden',
+          background: 'var(--bg-base)',
+        }}
+      >
+        {/* Video background */}
+        {!videoError ? (
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            loop
+            playsInline
+            onError={() => setVideoError(true)}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              opacity: 0.25,
+              filter: 'saturate(0.6) hue-rotate(200deg)',
+            }}
+          >
+            <source src="/images/products/hero-watch.webm" type="video/webm" />
+          </video>
+        ) : (
+          /* Fallback gradient bg */
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'radial-gradient(ellipse 80% 80% at 60% 50%, rgba(224, 228, 235, 0) 0%, var(--bg-base) 100%)',
+            }}
+          />
+        )}
+
+        {/* Overlay gradient */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background:
+              'linear-gradient(90deg, rgba(4,8,15,0.95) 0%, rgba(105, 117, 137, 0) 50%, rgba(241, 241, 242, 0.16) 100%)',
+            pointerEvents: 'none',
+          }}
+        />
+
         {/* Ambient rings */}
-        <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none', overflow:'hidden' }}>
-          {[520, 380, 260].map((s, i) => (
-            <div key={s} style={{
-              position:'absolute', width:`${s}px`, height:`${s}px`,
-              borderRadius:'50%', border:'1px solid rgba(184,147,58,0.06)',
-              animation: i === 0 ? 'spin-slow 18s linear infinite' : 'none',
-            }} />
-          ))}
+        <div
+          style={{
+            position: 'absolute',
+            right: '15%',
+            top: '50%',
+            transform: 'translate(50%, -50%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <AmbientRing size={500} color="var(--blue-accent)" delay="0s" opacity={0.06} />
+          <AmbientRing size={350} color="var(--gold)" delay="1.5s" opacity={0.08} />
+          <AmbientRing size={200} color="var(--blue-bright)" delay="0.75s" opacity={0.1} />
         </div>
 
-        {/* 3D canvas */}
-        <motion.div style={{ y: canvasY, position:'absolute', right:'5%', top:'50%', transform:'translateY(-50%)', width:'500px', height:'500px', opacity:0.9 }} className="hidden lg:block">
-          <Suspense fallback={null}><WatchHero3D /></Suspense>
-        </motion.div>
+        {/* Decorative watch illustration */}
+        {/* <div
+          style={{
+            position: 'absolute',
+            right: '8%',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: '420px',
+            height: '420px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            animation: 'float-watch 6s ease-in-out infinite',
+            pointerEvents: 'none',
+          }}
+          className="hero-watch-float"
+        >
+          <div
+            style={{
+              width: '260px',
+              height: '260px',
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, #152a4e 0%, #0a1628 60%, #04080f 100%)',
+              border: '2px solid rgba(61,143,212,0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 60px rgba(61,143,212,0.12), 0 0 120px rgba(61,143,212,0.06)',
+              fontSize: '100px',
+            }}
+          >
+            🐒
+          </div>
+        </div> */}
 
-        {/* Hero text */}
-        <div className="container-wide" style={{ position:'relative', zIndex:2 }}>
-          <motion.div style={{ y: contentY, opacity: contentOp }} className="max-w-xl">
-            <motion.p initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.2, duration:0.7 }}
-              style={{ fontSize:'10px', letterSpacing:'0.4em', textTransform:'uppercase', color:'#B8933A', fontWeight:600, marginBottom:'24px' }}>
-              Premium Timepieces
-            </motion.p>
+        {/* Hero content */}
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 10,
+            maxWidth: '1400px',
+            margin: '0 auto',
+            padding: '120px 24px 80px',
+            width: '100%',
+          }}
+        >
+          <div style={{ maxWidth: '640px' }}>
+            {/* Eyebrow */}
+            <div
+              className="hero-badge"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '6px 16px',
+                background: 'rgba(61,143,212,0.1)',
+                border: '1px solid rgba(61,143,212,0.25)',
+                borderRadius: '20px',
+                marginBottom: '28px',
+              }}
+            >
+              <span
+                style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  background: 'var(--blue-bright)',
+                  boxShadow: '0 0 8px var(--blue-bright)',
+                }}
+              />
+              <span
+                style={{
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  letterSpacing: '0.15em',
+                  textTransform: 'uppercase',
+                  color: 'var(--blue-bright)',
+                }}
+              >
+                Premium Timepieces
+              </span>
+            </div>
 
-            <motion.h1 initial={{ opacity:0, y:24 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.35, duration:0.8, ease:[0,0,0.2,1] }}
-              style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(40px,6vw,72px)', lineHeight:1.08, color:'#F5F5F0', marginBottom:'28px', fontWeight:400 }}>
-              Where Time<br />
-              <span style={{ fontFamily:"'Cormorant Garamond',serif", fontStyle:'italic', fontWeight:300,
-                background:'linear-gradient(135deg,#C4A24A 0%,#E8C96A 45%,#9A7A2A 100%)',
-                WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text',
-              }}>Finds Its Soul</span>
-            </motion.h1>
+            {/* Headline */}
+            <h1
+              className="hero-title"
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 'clamp(3rem, 6vw, 5.5rem)',
+                fontWeight: '300',
+                lineHeight: 1.05,
+                color: 'var(--text-primary)',
+                marginBottom: '24px',
+                letterSpacing: '-0.01em',
+              }}
+            >
+              Where Time
+              <br />
+              <span
+                style={{
+                  background: 'var(--gold-gradient)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  fontStyle: 'italic',
+                  fontWeight: '600',
+                }}
+              >
+                Finds Its Soul.
+              </span>
+            </h1>
 
-            <motion.p initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.5, duration:0.7 }}
-              style={{ fontSize:'15px', color:'rgba(245,245,240,0.5)', lineHeight:1.8, maxWidth:'400px', marginBottom:'44px' }}>
-              Each watch in our collection is a philosophy — handcrafted for those who
-              understand that time is not merely measured, it is lived.
-            </motion.p>
+            {/* Subheadline */}
+            <p
+              className="hero-sub"
+              style={{
+                fontSize: '16px',
+                color: 'var(--text-secondary)',
+                lineHeight: '1.7',
+                maxWidth: '460px',
+                marginBottom: '44px',
+              }}
+            >
+              Smart. Sleek. Timeless. Discover our curated collection of luxury watches crafted for those who understand that true elegance is measured in moments.
+            </p>
 
-            <motion.div initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.65, duration:0.7 }}
-              style={{ display:'flex', flexWrap:'wrap', gap:'14px', alignItems:'center' }}>
+            {/* CTAs */}
+            <div
+              className="hero-cta"
+              style={{
+                display: 'flex',
+                gap: '16px',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                marginBottom: '60px',
+              }}
+            >
               <Link
                 href="/products"
-                className="inline-flex h-[50px] items-center gap-[10px] rounded-[12px] px-8
-                          bg-gradient-to-br from-[#C4A24A] via-[#E8C96A] to-[#9A7A2A]
-                          text-[13px] font-semibold tracking-[0.08em] text-black
-                          no-underline shadow-[0_0_24px_rgba(184,147,58,0.3)]
-                          transition-all duration-300
-                          hover:-translate-y-[1px]
-                          hover:opacity-90
-                          hover:shadow-[0_4px_30px_rgba(184,147,58,0.45)]"
+                style={{
+                  padding: '14px 32px',
+                  background: 'var(--gold-gradient)',
+                  color: '#000',
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  borderRadius: '40px',
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: 'var(--shadow-gold)',
+                  transition: 'transform var(--transition), box-shadow var(--transition)',
+                }}
+                onMouseEnter={(e) => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.transform = 'translateY(-2px)';
+                  el.style.boxShadow = '0 8px 30px rgba(201,168,76,0.35)';
+                }}
+                onMouseLeave={(e) => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.transform = 'translateY(0)';
+                  el.style.boxShadow = 'var(--shadow-gold)';
+                }}
               >
-                Explore Collection <ArrowRight size={15} />
+                Shop Now →
               </Link>
-              <Link
-                href="/products?categoryId=5"
-                className="inline-flex h-[50px] items-center rounded-[12px] px-7
-                          border border-[rgba(184,147,58,0.3)]
-                          text-[13px] text-[rgba(245,245,240,0.65)]
-                          no-underline transition-all duration-300
-                          hover:border-[rgba(184,147,58,0.7)]
-                          hover:bg-[rgba(184,147,58,0.06)]
-                          hover:text-[#F5F5F0]"
+
+              {/* <Link
+                href="/products"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  color: 'var(--text-secondary)',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  textDecoration: 'none',
+                  transition: 'color var(--transition)',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
               >
-                Limited Editions
-              </Link>
-            </motion.div>
-          </motion.div>
+                <span
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    border: '1px solid var(--border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  ▶
+                </span>
+                Watch Collection
+              </Link> */}
+            </div>
+
+            {/* Feature badges */}
+            <div
+              className="hero-features"
+              style={{
+                display: 'flex',
+                gap: '12px',
+                flexWrap: 'wrap',
+              }}
+            >
+              <FeatureBadge icon="✦" label="Premium" sub="Craftsmanship" />
+              {/* <FeatureBadge icon="🛡" label="Warranty" sub="1 Year" /> */}
+              <FeatureBadge icon="💎" label="Authentic" sub="Certified" />
+            </div>
+          </div>
         </div>
 
         {/* Scroll indicator */}
-        <motion.div animate={{ y: [0, 8, 0] }} transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
-          style={{ position:'absolute', bottom:'36px', left:'50%', transform:'translateX(-50%)', display:'flex', flexDirection:'column', alignItems:'center', gap:'6px', color:'rgba(255,255,255,0.2)' }}>
-          <span style={{ fontSize:'9px', letterSpacing:'0.25em', textTransform:'uppercase' }}>Scroll</span>
-          <ChevronDown size={14} />
-        </motion.div>
-      </section>
-
-      {/* ══════════════════════════════════════
-          QUOTE
-          ══════════════════════════════════════ */}
-      <section style={{ padding:'72px 0', borderTop:'1px solid rgba(255,255,255,0.05)', borderBottom:'1px solid rgba(255,255,255,0.05)', background:'#0A0A0A' }}>
-        <div className="container-narrow" style={{ textAlign:'center', maxWidth:'680px', margin:'0 auto', padding:'0 24px' }}>
-          <span className="divider-gold" style={{ margin:'0 auto 28px' }} />
-          <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'clamp(20px,3vw,32px)', color:'rgba(245,245,240,0.65)', lineHeight:1.65, fontStyle:'italic', fontWeight:300 }}>
-            "A watch is not an accessory. It is a philosophy. A discipline. A daily reminder
-            that time, once passed, cannot be reclaimed."
-          </p>
-          <span className="divider-gold" style={{ margin:'28px auto 0' }} />
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════
-          CATEGORIES
-          ══════════════════════════════════════ */}
-      {categories && categories.length > 0 && (
-        <section className="section" style={{ background:'#080808' }}>
-          <div className="container-wide">
-            <div style={{ textAlign:'center', marginBottom:'52px' }}>
-              <p style={{ fontSize:'10px', letterSpacing:'0.4em', textTransform:'uppercase', color:'#B8933A', fontWeight:600, marginBottom:'12px' }}>Browse By Style</p>
-              <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(28px,3.5vw,42px)', color:'#F5F5F0', fontWeight:400 }}>Our Collections</h2>
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:'14px' }}>
-              {categories.map((cat, i) => (
-                <motion.div key={cat.id} initial={{ opacity:0, y:16 }} whileInView={{ opacity:1, y:0 }}
-                  transition={{ delay: i * 0.07 }} viewport={{ once:true }}>
-                    <Link
-                      href={`/products?categoryId=${cat.id}`}
-                      className="block rounded-2xl p-7 text-center
-                                border border-[rgba(255,255,255,0.07)]
-                                bg-[#141414] no-underline
-                                transition-all duration-300
-                                hover:-translate-y-[3px]
-                                hover:border-[rgba(184,147,58,0.4)]
-                                hover:bg-[rgba(184,147,58,0.05)]"
-                    >
-                    <div style={{ width:'44px', height:'44px', borderRadius:'50%', background:'rgba(184,147,58,0.1)', border:'1px solid rgba(184,147,58,0.2)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px', fontSize:'20px' }}>⌚</div>
-                    <p style={{ fontFamily:"'Playfair Display',serif", fontSize:'13px', color:'rgba(245,245,240,0.8)', fontWeight:400 }}>{cat.name}</p>
-                  </Link>
-                </motion.div>
-              ))}
-            </div>
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '32px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '8px',
+            opacity: 0.5,
+          }}
+        >
+          <div
+            style={{
+              width: '24px',
+              height: '40px',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              display: 'flex',
+              justifyContent: 'center',
+              paddingTop: '6px',
+            }}
+          >
+            <div
+              style={{
+                width: '3px',
+                height: '8px',
+                background: 'var(--blue-accent)',
+                borderRadius: '2px',
+                animation: 'float-watch 1.5s ease-in-out infinite',
+              }}
+            />
           </div>
-        </section>
-      )}
+          <span style={{ fontSize: '10px', letterSpacing: '0.15em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Scroll</span>
+        </div>
 
-      {/* ══════════════════════════════════════
-          FEATURED
-          ══════════════════════════════════════ */}
-      <section className="section" style={{ background:'#0A0A0A', borderTop:'1px solid rgba(255,255,255,0.05)' }}>
-        <div className="container-wide">
-          <div style={{ display:'flex', flexWrap:'wrap', alignItems:'flex-end', justifyContent:'space-between', gap:'16px', marginBottom:'52px' }}>
+        <style>{`
+          @media (max-width: 768px) {
+            .hero-watch-float { display: none !important; }
+          }
+        `}</style>
+      </section>
+
+      {/* ── SHOP BY CATEGORY ── */}
+      <section style={{ padding: '100px 24px', background: 'var(--bg-base)' }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-end',
+              justifyContent: 'space-between',
+              marginBottom: '56px',
+              gap: '16px',
+              flexWrap: 'wrap',
+            }}
+          >
             <div>
-              <p style={{ fontSize:'10px', letterSpacing:'0.4em', textTransform:'uppercase', color:'#B8933A', fontWeight:600, marginBottom:'12px' }}>New Arrivals</p>
-              <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(28px,3.5vw,42px)', color:'#F5F5F0', fontWeight:400 }}>Featured Timepieces</h2>
+              <p
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  letterSpacing: '0.2em',
+                  textTransform: 'uppercase',
+                  color: 'var(--blue-bright)',
+                  marginBottom: '10px',
+                }}
+              >
+                Browse by Style
+              </p>
+              <h2
+                style={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: 'clamp(2rem, 4vw, 3rem)',
+                  fontWeight: '600',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                Shop By Category
+              </h2>
             </div>
             <Link
               href="/products"
-              className="inline-flex items-center gap-2
-                        text-[13px] text-[#B8933A]
-                        no-underline transition-all duration-200
-                        hover:gap-3"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                border: '1px solid var(--border)',
+                borderRadius: '20px',
+                color: 'var(--text-secondary)',
+                fontSize: '13px',
+                transition: 'all var(--transition)',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => {
+                const el = e.currentTarget as HTMLElement;
+                el.style.color = 'var(--text-primary)';
+                el.style.borderColor = 'var(--border-active)';
+              }}
+              onMouseLeave={(e) => {
+                const el = e.currentTarget as HTMLElement;
+                el.style.color = 'var(--text-secondary)';
+                el.style.borderColor = 'var(--border)';
+              }}
             >
-              View All <ArrowRight size={14} />
+              View All Categories →
             </Link>
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))', gap:'20px' }}>
-            {isLoading
-              ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-              : featured?.slice(0, 4).map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+              gap: '16px',
+            }}
+          >
+            <CategoryCard emoji="⌚" title="Luxury" count="Premium collection" href="/products?category=luxury" />
+            <CategoryCard emoji="🏆" title="Sport" count="Active lifestyle" href="/products?category=sport" />
+            <CategoryCard emoji="💼" title="Classic" count="Timeless elegance" href="/products?category=classic" />
+            <CategoryCard emoji="🎯" title="Minimalist" count="Clean design" href="/products?category=minimalist" />
+            <CategoryCard emoji="✨" title="Limited" count="Exclusive editions" href="/products?category=limited" />
           </div>
         </div>
       </section>
 
-      {/* ══════════════════════════════════════
-          FEATURES
-          ══════════════════════════════════════ */}
-      <section style={{ padding:'72px 0', background:'#080808', borderTop:'1px solid rgba(255,255,255,0.05)' }}>
-        <div className="container-wide">
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:'40px' }}>
-            {FEATURES.map((f, i) => (
-              <motion.div key={f.title} initial={{ opacity:0, y:16 }} whileInView={{ opacity:1, y:0 }}
-                transition={{ delay: i * 0.1 }} viewport={{ once:true }}
-                style={{ textAlign:'center' }}>
-                <div style={{ fontSize:'26px', marginBottom:'16px' }}>{f.icon}</div>
-                <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:'16px', color:'#F5F5F0', fontWeight:400, marginBottom:'8px' }}>{f.title}</h3>
-                <p style={{ fontSize:'13px', color:'#5A5A55', lineHeight:1.65 }}>{f.desc}</p>
-              </motion.div>
+      {/* ── FEATURED WATCHES ── */}
+      <section style={{ padding: '100px 24px', background: 'var(--bg-surface)' }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '60px' }}>
+            <p style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '12px' }}>
+              Curated Selection
+            </p>
+            <h2
+              style={{
+                fontFamily: 'var(--font-heading)',
+                fontSize: 'clamp(2rem, 4vw, 3rem)',
+                fontWeight: '600',
+                color: 'var(--text-primary)',
+                marginBottom: '16px',
+              }}
+            >
+              Featured Timepieces
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '15px', maxWidth: '480px', margin: '0 auto' }}>
+              Handpicked from our exclusive collection — each piece a testament to precision.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+              gap: '20px',
+              marginBottom: '48px',
+            }}
+          >
+            <FeaturedProductCard name="Chronograph Elite" price="₹38,500" tag="NEW" />
+            <FeaturedProductCard name="Ocean Diver Pro" price="₹52,000" tag="BESTSELLER" />
+            <FeaturedProductCard name="Heritage Classic" price="₹29,999" />
+            <FeaturedProductCard name="Midnight Tourbillon" price="₹1,25,000" tag="LIMITED" />
+          </div>
+
+          <div style={{ textAlign: 'center' }}>
+            <Link
+              href="/products"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '14px 36px',
+                background: 'transparent',
+                border: '1px solid var(--border-active)',
+                borderRadius: '40px',
+                color: 'var(--text-primary)',
+                fontWeight: '500',
+                fontSize: '14px',
+                letterSpacing: '0.04em',
+                textDecoration: 'none',
+                transition: 'all var(--transition)',
+              }}
+              onMouseEnter={(e) => {
+                const el = e.currentTarget as HTMLElement;
+                el.style.background = 'rgba(61,143,212,0.1)';
+                el.style.borderColor = 'var(--blue-accent)';
+              }}
+              onMouseLeave={(e) => {
+                const el = e.currentTarget as HTMLElement;
+                el.style.background = 'transparent';
+                el.style.borderColor = 'var(--border-active)';
+              }}
+            >
+              Explore Full Collection →
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── NEW ARRIVAL SPOTLIGHT ── */}
+      <section style={{ padding: '80px 24px', background: 'var(--bg-base)' }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '32px',
+              alignItems: 'center',
+              background: 'linear-gradient(135deg, rgba(10,22,40,0.8) 0%, rgba(13,32,64,0.9) 100%)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-xl)',
+              overflow: 'hidden',
+              minHeight: '360px',
+            }}
+          >
+            {/* Left: watch display */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '48px',
+                background: 'radial-gradient(ellipse at center, rgba(61,143,212,0.08) 0%, transparent 70%)',
+                position: 'relative',
+                minHeight: '300px',
+              }}
+            >
+              <AmbientRing size={220} color="var(--gold)" delay="0s" opacity={0.12} />
+              <div style={{ fontSize: '80px', zIndex: 1, animation: 'float-watch 5s ease-in-out infinite' }}>⌚</div>
+            </div>
+
+            {/* Right: text */}
+            <div style={{ padding: '48px 48px 48px 0' }}>
+              <span
+                style={{
+                  display: 'inline-block',
+                  padding: '4px 12px',
+                  background: 'rgba(201,168,76,0.12)',
+                  border: '1px solid rgba(201,168,76,0.3)',
+                  borderRadius: '12px',
+                  fontSize: '10px',
+                  fontWeight: '700',
+                  letterSpacing: '0.15em',
+                  textTransform: 'uppercase',
+                  color: 'var(--gold)',
+                  marginBottom: '20px',
+                }}
+              >
+                New Arrival
+              </span>
+              <h3
+                style={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: 'clamp(1.8rem, 3vw, 2.5rem)',
+                  fontWeight: '700',
+                  color: 'var(--text-primary)',
+                  lineHeight: 1.15,
+                  marginBottom: '16px',
+                }}
+              >
+                Small Size.{' '}
+                <span
+                  style={{
+                    background: 'var(--gold-gradient)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                    fontStyle: 'italic',
+                  }}
+                >
+                  Big Performance.
+                </span>
+              </h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: '1.7', marginBottom: '32px', maxWidth: '340px' }}>
+                Experience precision like never before. Our newest arrivals blend ultra-slim engineering with timeless artistry.
+              </p>
+              <Link
+                href="/products"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '12px 28px',
+                  background: 'var(--gold-gradient)',
+                  color: '#000',
+                  fontWeight: '700',
+                  fontSize: '13px',
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  borderRadius: '30px',
+                  textDecoration: 'none',
+                  boxShadow: 'var(--shadow-gold)',
+                  transition: 'transform var(--transition)',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+              >
+                Shop Now →
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <style>{`
+          @media (max-width: 768px) {
+            section > div > div[style*="grid-template-columns: 1fr 1fr"] {
+              grid-template-columns: 1fr !important;
+            }
+          }
+        `}</style>
+      </section>
+
+      {/* ── TRUST SECTION ── */}
+      <section style={{ padding: '80px 24px', background: 'var(--bg-surface)', borderTop: '1px solid var(--border)' }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '32px',
+              textAlign: 'center',
+            }}
+          >
+            {[
+              { icon: '🏅', title: 'Authentic Pieces', desc: 'Every watch verified and certified' },
+              { icon: '📦', title: 'Secure Packaging', desc: 'Premium presentation on delivery' },
+              { icon: '🔧', title: '1 Year Warranty', desc: 'Service & repair coverage' },
+              { icon: '💬', title: 'WhatsApp Support', desc: 'Direct line to our experts' },
+            ].map(({ icon, title, desc }) => (
+              <div key={title} style={{ padding: '32px 20px' }}>
+                <div style={{ fontSize: '36px', marginBottom: '16px' }}>{icon}</div>
+                <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '17px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>{title}</h4>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.6' }}>{desc}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
-
-      {/* ══════════════════════════════════════
-          CTA BANNER
-          ══════════════════════════════════════ */}
-      <section style={{
-        padding:'96px 0', position:'relative', overflow:'hidden',
-        background:'radial-gradient(ellipse 60% 80% at 50% 50%, rgba(20,12,0,0.95) 0%, #080808 70%)',
-        borderTop:'1px solid rgba(255,255,255,0.05)',
-      }}>
-        <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
-          <div style={{ width:'400px', height:'400px', borderRadius:'50%', border:'1px solid rgba(184,147,58,0.08)', animation:'pulse-ring 3s ease-out infinite' }} />
-        </div>
-        <div className="container-wide" style={{ position:'relative', zIndex:1, textAlign:'center' }}>
-          <motion.div initial={{ opacity:0, y:20 }} whileInView={{ opacity:1, y:0 }} viewport={{ once:true }} transition={{ duration:0.7 }}>
-            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(32px,4vw,54px)', color:'#F5F5F0', fontWeight:400, lineHeight:1.15, marginBottom:'20px' }}>
-              Your Perfect Watch{' '}
-              <span style={{ fontFamily:"'Cormorant Garamond',serif", fontStyle:'italic', fontWeight:300,
-                background:'linear-gradient(135deg,#C4A24A,#E8C96A 45%,#9A7A2A)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text',
-              }}>Awaits</span>
-            </h2>
-            <p style={{ fontSize:'15px', color:'rgba(245,245,240,0.4)', maxWidth:'480px', margin:'0 auto 44px', lineHeight:1.75 }}>
-              Every collection tells a different story. Discover the timepiece that speaks yours.
-            </p>
-            <Link
-              href="/products"
-              className="inline-flex h-[54px] items-center gap-3 rounded-[14px] px-10
-                        bg-gradient-to-br from-[#C4A24A] via-[#E8C96A] to-[#9A7A2A]
-                        text-[13px] font-semibold tracking-[0.08em] text-black
-                        no-underline
-                        shadow-[0_0_32px_rgba(184,147,58,0.35)]
-                        transition-all duration-300
-                        hover:-translate-y-[2px]
-                        hover:shadow-[0_6px_40px_rgba(184,147,58,0.5)]
-                        hover:opacity-90"
-            >
-              Shop Collection <ArrowRight size={16} />
-            </Link>
-          </motion.div>
-        </div>
-      </section>
-    </div>
+    </>
   );
 }
