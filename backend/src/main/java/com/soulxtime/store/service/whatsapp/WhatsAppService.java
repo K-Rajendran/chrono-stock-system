@@ -56,7 +56,7 @@ public class WhatsAppService {
     @Value("${app.whatsapp.api-token:}")
     private String apiToken;
 
-    @Value("${app.admin.owner-name:Soul x Time}")
+    @Value("${app.admin.owner-name:AFINO}")
     private String ownerName;
 
     private static final DateTimeFormatter BILL_DATE_FORMAT =
@@ -134,7 +134,7 @@ public class WhatsAppService {
 
     private String buildPurchaseRequestMessage(PurchaseRequest pr) {
         StringBuilder sb = new StringBuilder();
-        sb.append("🕐 *SOUL x TIME — New Purchase Request*\n\n");
+        sb.append("🕐 *AFINO — New Purchase Request*\n\n");
         sb.append("━━━━━━━━━━━━━━━━━━━━━━━━\n");
         sb.append("📋 *Reference:* ").append(pr.getReferenceId()).append("\n");
         sb.append("👤 *Customer:* ").append(pr.getCustomerName()).append("\n");
@@ -160,7 +160,7 @@ public class WhatsAppService {
 
     private String buildBillMessage(Bill bill) {
         StringBuilder sb = new StringBuilder();
-        sb.append("🕐 *SOUL x TIME — Your Invoice*\n\n");
+        sb.append("🕐 *AFINO — Your Invoice*\n\n");
         sb.append("━━━━━━━━━━━━━━━━━━━━━━━━\n");
         sb.append("🧾 *Bill No:* ").append(bill.getBillNumber()).append("\n");
         sb.append("👤 *Name:* ").append(bill.getCustomerName()).append("\n");
@@ -181,7 +181,7 @@ public class WhatsAppService {
         sb.append("💎 *Total:* ₹").append(bill.getFinalTotal()).append("\n");
         sb.append("💳 *Payment:* ").append(bill.getPaymentMethod().name()).append("\n");
         sb.append("✅ *Status:* ").append(bill.getPaymentStatus().name()).append("\n\n");
-        sb.append("Thank you for choosing Soul x Time.\n");
+        sb.append("Thank you for choosing AFINO.\n");
         sb.append("_Where Time Finds Its Soul_");
         return sb.toString();
     }

@@ -11,7 +11,7 @@ export default function AboutPage() {
           <span style={{ fontStyle: 'italic', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Its Soul</span>
         </h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: '17px', maxWidth: '600px', margin: '0 auto', lineHeight: '1.8' }}>
-          SOUL × TIME was founded with a singular belief: that a watch is not merely a timekeeper, but a companion for life's most meaningful moments.
+          AFINO was founded with a singular belief: that a watch is not merely a timekeeper, but a companion for life's most meaningful moments.
         </p>
       </div>
 
@@ -20,7 +20,7 @@ export default function AboutPage() {
         {[
           {
             title: 'Our Beginning',
-            text: 'Born from a passion for horology and a deep appreciation for timeless craftsmanship, SOUL × TIME emerged as a destination for those who understand that the finest watches deserve to be worn, not locked away. We curate each piece with care, selecting only timepieces that meet our exacting standards of quality, design, and heritage.',
+            text: 'Born from a passion for horology and a deep appreciation for timeless craftsmanship, AFINO emerged as a destination for those who understand that the finest watches deserve to be worn, not locked away. We curate each piece with care, selecting only timepieces that meet our exacting standards of quality, design, and heritage.',
             icon: '⌚',
           },
           {

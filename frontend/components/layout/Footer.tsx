@@ -1,7 +1,15 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 export default function Footer() {
   const year = new Date().getFullYear();
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    const sync = () => setSignedIn(Boolean(localStorage.getItem('sxt_token')));
+    sync(); window.addEventListener('auth-updated', sync); return () => window.removeEventListener('auth-updated', sync);
+  }, []);
 
   return (
     <footer
@@ -23,14 +31,14 @@ export default function Footer() {
         }}
       >
         {/* Brand */}
-        <div>
+        <div className="footer-explore">
           <div style={{ marginBottom: '16px' }}>
             <img
               src="/afino-logo.svg"
               alt="AFINO"
               style={{
-                width: '204px',
-                height: '204px',
+                width: '104px',
+                height: '104px',
                 filter: 'invert(1) sepia(1) saturate(2) hue-rotate(185deg) brightness(1.2)',
                 marginBottom: '8px',
               }}
@@ -65,7 +73,7 @@ export default function Footer() {
         </div>
 
         {/* Navigation */}
-        <div>
+        <div className="footer-account">
           <h4
             style={{
               fontFamily: 'var(--font-body)',
@@ -121,8 +129,7 @@ export default function Footer() {
             { href: '/account', label: 'My Account' },
             { href: '/bills', label: 'My Bills' },
             { href: '/cart', label: 'Cart' },
-            { href: '/login', label: 'Sign In' },
-            { href: '/register', label: 'Register' },
+            ...(!signedIn ? [{ href: '/login', label: 'Sign In' }, { href: '/register', label: 'Register' }] : []),
           ].map(({ href, label }) => (
             <Link
               key={href}
@@ -186,7 +193,7 @@ export default function Footer() {
         }}
       >
         <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-          © {year} SOUL × TIME. All rights reserved.
+          © {year} AFINO. All rights reserved.
         </p>
         <div style={{ display: 'flex', gap: '24px' }}>
           {['Privacy Policy', 'Terms of Service'].map((label) => (
@@ -199,6 +206,7 @@ export default function Footer() {
           ))}
         </div>
       </div>
+      <style>{`@media (max-width: 640px) { .footer-explore { grid-column: 1; } .footer-account { grid-column: 2; } }`}</style>
     </footer>
   );
 }

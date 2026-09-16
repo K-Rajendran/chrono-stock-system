@@ -9,7 +9,7 @@ interface Product {
   id: string;
   name: string;
   brand: string;
-  category: string;
+  categoryName: string | null;
   sellingPrice: number;
   effectivePrice: number;
   discountValue: number;
@@ -17,8 +17,6 @@ interface Product {
   discountAmount: number;
   stockStatus: string;
   primaryImageUrl?: string;
-  featured: boolean;
-  isNew: boolean;
 }
 
 interface Category { id: string; name: string; }
@@ -54,20 +52,14 @@ function ProductCard({ product }: { product: Product }) {
         )}
         {/* Badges */}
         <div style={{ position: 'absolute', top: '10px', left: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          {product.isNew && <span style={{ padding: '3px 8px', background: 'var(--gold-gradient)', color: '#000', fontSize: '10px', fontWeight: '700', borderRadius: '10px' }}>NEW</span>}
           {hasDiscount && <span style={{ padding: '3px 8px', background: 'rgba(239,68,68,0.9)', color: 'white', fontSize: '10px', fontWeight: '700', borderRadius: '10px' }}>
             -{product.discountType === 'PERCENTAGE' ? `${product.discountValue}%` : fmt(product.discountValue)}
           </span>}
         </div>
-        {product.stockStatus === 'OUT_OF_STOCK' && (
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: '#f87171', fontSize: '13px', fontWeight: '700', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Out of Stock</span>
-          </div>
-        )}
       </div>
       {/* Info */}
       <div style={{ padding: '18px' }}>
-        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{product.brand} · {product.category}</div>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{product.brand} · {product.categoryName ?? 'Collection'}</div>
         <div style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', lineHeight: 1.3 }}>{product.name}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '18px', fontWeight: '700', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
@@ -108,7 +100,7 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
-  const [category, setCategory] = useState(searchParams.get('category') ?? '');
+  const [category, setCategory] = useState(searchParams.get('categoryId') ?? '');
   const [sort, setSort] = useState('createdAt,desc');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
@@ -122,9 +114,10 @@ export default function ProductsPage() {
   const fetchProducts = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const params = new URLSearchParams({ page: String(currentPage), size: '12', sort });
+      const [sortBy, sortDir] = sort.split(',');
+      const params = new URLSearchParams({ page: String(currentPage), size: '12', sortBy, sortDir });
       if (search) params.set('search', search);
-      if (category) params.set('category', category);
+      if (category) params.set('categoryId', category);
       if (minPrice) params.set('minPrice', minPrice);
       if (maxPrice) params.set('maxPrice', maxPrice);
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/products?${params}`);
@@ -184,7 +177,7 @@ export default function ProductsPage() {
             <select value={category} onChange={e => setCategory(e.target.value)}
               style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '13px', outline: 'none' }}>
               <option value="">All Categories</option>
-              {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div style={{ flex: '1 1 120px' }}>

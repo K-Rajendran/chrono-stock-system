@@ -17,13 +17,13 @@ interface Product {
 
 interface InventoryTransaction {
   id: string;
-  type: string;
+  transactionType: string;
   quantityChange: number;
   quantityBefore: number;
   quantityAfter: number;
   reason: string;
   createdAt: string;
-  performedBy: string;
+  performedByName: string;
 }
 
 const TRANSACTION_TYPES = [
@@ -57,7 +57,7 @@ export default function InventoryDetailPage() {
 
   const [form, setForm] = useState({
     type: 'PURCHASE',
-    quantityChange: '',
+    quantity: '',
     reason: '',
   });
 
@@ -73,7 +73,7 @@ export default function InventoryDetailPage() {
 
       const [pRes, tRes] = await Promise.all([
         fetch(`${base}/api/admin/products/${id}`, { headers }),
-        fetch(`${base}/api/admin/inventory/${id}/transactions?page=0&size=20`, { headers }),
+        fetch(`${base}/api/admin/inventory/${id}/history?page=0&size=20`, { headers }),
       ]);
 
       if (!pRes.ok) throw new Error('product');
@@ -90,19 +90,19 @@ export default function InventoryDetailPage() {
   useEffect(() => { fetchData(); }, [id]);
 
   const handleAdjust = async () => {
-    if (!form.quantityChange || isNaN(Number(form.quantityChange))) {
+    if (!form.quantity || isNaN(Number(form.quantity))) {
       showToast('Enter a valid quantity.'); return;
     }
-    const qty = Number(form.quantityChange);
+    const qty = Number(form.quantity);
     if (qty === 0) { showToast('Quantity cannot be zero.'); return; }
 
     setAdjusting(true);
     try {
       const token = localStorage.getItem('sxt_token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/inventory/adjust`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/inventory/${id}/adjust`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ productId: id, type: form.type, quantityChange: qty, reason: form.reason }),
+        body: JSON.stringify({ type: form.type, quantity: Math.abs(qty), reason: form.reason }),
       });
 
       if (!res.ok) {
@@ -111,7 +111,7 @@ export default function InventoryDetailPage() {
       }
 
       showToast('Stock updated successfully.');
-      setForm({ type: 'PURCHASE', quantityChange: '', reason: '' });
+      setForm({ type: 'PURCHASE', quantity: '', reason: '' });
       fetchData();
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Adjustment failed.');
@@ -189,8 +189,8 @@ export default function InventoryDetailPage() {
                 </label>
                 <input
                   type="number"
-                  value={form.quantityChange}
-                  onChange={e => setForm(f => ({ ...f, quantityChange: e.target.value }))}
+                  value={form.quantity}
+                  onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))}
                   placeholder="e.g. 10 or -3"
                   style={{ width: '100%', padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', WebkitTextFillColor: 'var(--text-primary)' }}
                 />
@@ -232,22 +232,22 @@ export default function InventoryDetailPage() {
                 <div key={t.id} style={{ padding: '14px 20px', borderBottom: i < transactions.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
                   <div style={{
                     width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                    background: `${TYPE_COLORS[t.type] ?? '#60a5fa'}18`,
-                    border: `1px solid ${TYPE_COLORS[t.type] ?? '#60a5fa'}40`,
+                    background: `${TYPE_COLORS[t.transactionType] ?? '#60a5fa'}18`,
+                    border: `1px solid ${TYPE_COLORS[t.transactionType] ?? '#60a5fa'}40`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '14px', fontWeight: '700',
-                    color: TYPE_COLORS[t.type] ?? '#60a5fa',
+                    color: TYPE_COLORS[t.transactionType] ?? '#60a5fa',
                   }}>
                     {t.quantityChange > 0 ? '+' : ''}{t.quantityChange}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>{t.type}</span>
+                      <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>{t.transactionType}</span>
                       <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t.quantityBefore} → {t.quantityAfter}</span>
                     </div>
                     {t.reason && <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '2px' }}>{t.reason}</div>}
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      {fmtDate(t.createdAt)}{t.performedBy ? ` · ${t.performedBy}` : ''}
+                      {fmtDate(t.createdAt)}{t.performedByName ? ` · ${t.performedByName}` : ''}
                     </div>
                   </div>
                 </div>

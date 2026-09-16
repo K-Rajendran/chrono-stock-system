@@ -9,24 +9,24 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 interface RequestItem {
   id: string;
   productId: string;
-  productNameSnapshot: string;
-  sellingPriceSnapshot: number;
-  discountSnapshot: number;
-  discountType: 'NONE' | 'PERCENTAGE' | 'FIXED';
+  productName: string;
+  unitPrice: number;
+  discountValue: number;
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT';
   quantity: number;
   lineTotal: number;
 }
 
 interface PurchaseRequest {
   id: string;
-  requestNumber: string;
+  referenceId: string;
   status: string;
   customerName: string;
   customerPhone: string;
   items: RequestItem[];
   subtotal: number;
   totalDiscount: number;
-  total: number;
+  totalAmount: number;
   notes: string;
   createdAt: string;
   billId?: string;
@@ -82,7 +82,7 @@ export default function AdminPurchaseRequestDetailPage() {
     try {
       const token = localStorage.getItem('sxt_token');
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/purchase-requests/${id}/status`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status: newStatus }),
       });
@@ -105,13 +105,11 @@ export default function AdminPurchaseRequestDetailPage() {
           customerName: request!.customerName,
           customerPhone: request!.customerPhone,
           paymentMethod: billForm.paymentMethod,
-          transactionReference: billForm.transactionReference,
+          transactionRef: billForm.transactionReference,
           notes: billForm.notes,
           items: request!.items.map(i => ({
             productId: i.productId,
-            productNameSnapshot: i.productNameSnapshot,
-            sellingPriceSnapshot: i.sellingPriceSnapshot,
-            discountSnapshot: i.discountSnapshot,
+            discountValue: i.discountValue,
             discountType: i.discountType,
             quantity: i.quantity,
           })),
@@ -162,7 +160,7 @@ export default function AdminPurchaseRequestDetailPage() {
         <div>
           <Link href="/admin/purchase-requests" style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none', marginBottom: '6px', display: 'inline-block' }}>← Purchase Requests</Link>
           <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '700', color: 'var(--text-primary)' }}>
-            Request #{request.requestNumber}
+            Request #{request.referenceId}
           </h1>
           <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>{fmtDateTime(request.createdAt)}</div>
         </div>
@@ -209,8 +207,8 @@ export default function AdminPurchaseRequestDetailPage() {
                 <tbody>
                   {request.items.map((item, i) => (
                     <tr key={item.id} style={{ borderBottom: i < request.items.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)', fontWeight: '500' }}>{item.productNameSnapshot}</td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(item.sellingPriceSnapshot)}</td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)', fontWeight: '500' }}>{item.productName}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(item.unitPrice)}</td>
                       <td style={{ padding: '12px 16px', textAlign: 'right', color: 'var(--text-secondary)' }}>{item.quantity}</td>
                       <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: '700', color: 'var(--text-primary)' }}>{fmt(item.lineTotal)}</td>
                     </tr>
@@ -229,7 +227,7 @@ export default function AdminPurchaseRequestDetailPage() {
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '17px', fontWeight: '700' }}>
                   <span style={{ color: 'var(--text-primary)' }}>Total</span>
-                  <span style={{ background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{fmt(request.total)}</span>
+                  <span style={{ background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{fmt(request.totalAmount)}</span>
                 </div>
               </div>
             </div>
@@ -325,7 +323,7 @@ export default function AdminPurchaseRequestDetailPage() {
           {/* WhatsApp to customer */}
           <button
             onClick={() => {
-              const msg = encodeURIComponent(`Hello ${request.customerName},\n\nYour purchase request #${request.requestNumber} is *${request.status}*.\n\nTotal: ${fmt(request.total)}\n\n— SOUL × TIME`);
+              const msg = encodeURIComponent(`Hello ${request.customerName},\n\nYour purchase request #${request.referenceId} is *${request.status}*.\n\nTotal: ${fmt(request.totalAmount)}\n\n— AFINO`);
               window.open(`https://wa.me/${request.customerPhone.replace(/\D/g, '')}?text=${msg}`, '_blank');
             }}
             style={{ width: '100%', padding: '11px', background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.3)', borderRadius: 'var(--radius-md)', color: '#25D366', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>

@@ -53,7 +53,7 @@ export default function CartPage() {
     window.dispatchEvent(new Event('cart-updated'));
   };
 
-  const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const subtotal = items.reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0);
 
   const handlePurchaseRequest = async () => {
     const userStr = localStorage.getItem('sxt_user');
@@ -63,12 +63,15 @@ export default function CartPage() {
     setSubmitting(true);
     try {
       const user = JSON.parse(userStr);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchase-requests`, {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      const itemResponses = await Promise.all(items.map(i => fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart/items`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ productId: Number(i.id), quantity: Number(i.quantity) || 1 }),
+      })));
+      if (itemResponses.some(response => !response.ok)) throw new Error('Could not prepare your cart.');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchase-requests/from-cart`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          items: items.map(i => ({ productId: i.id, quantity: i.quantity })),
-        }),
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!res.ok) {
@@ -78,27 +81,17 @@ export default function CartPage() {
 
       const data = await res.json();
 
-      // Build WhatsApp message
-      const msg = encodeURIComponent(
-        `*SOUL × TIME — Purchase Request #${data.requestNumber}*\n\n` +
-        `Customer: ${user.name}\n\n` +
-        `*Items:*\n` +
-        items.map(i => `• ${i.name} × ${i.quantity} — ${fmt(i.price * i.quantity)}`).join('\n') +
-        `\n\nTotal: *${fmt(subtotal)}*\n` +
-        `Request ID: ${data.requestNumber}\n\n` +
-        `Please confirm availability and send bill. Thank you!`
-      );
+      const whatsappRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchase-requests/${data.id}/send-whatsapp`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      const whatsapp = whatsappRes.ok ? await whatsappRes.json() : null;
 
       // Clear cart
       clear();
       showToast('Purchase request submitted!');
 
       // Open WhatsApp (if configured) or redirect
-      if (data.whatsappUrl) window.open(data.whatsappUrl, '_blank');
-      else {
-        const ownerNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '';
-        window.open(`https://wa.me/${ownerNumber}?text=${msg}`, '_blank');
-      }
+      if (whatsapp?.whatsappLink) window.open(whatsapp.whatsappLink, '_blank');
 
       setTimeout(() => router.push(`/purchase-requests/${data.id}`), 800);
     } catch (e: unknown) {

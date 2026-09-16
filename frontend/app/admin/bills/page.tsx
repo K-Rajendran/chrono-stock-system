@@ -14,7 +14,7 @@ interface Bill {
   paymentStatus: string;
   billStatus: string;
   createdAt: string;
-  itemCount: number;
+  items: unknown[];
 }
 
 interface Page<T> { content: T[]; totalElements: number; totalPages: number; number: number; }
@@ -91,14 +91,14 @@ export default function AdminBillsPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(8,20,40,0.5)' }}>
-                    {['Bill #', 'Customer', 'Items', 'Total', 'Payment', 'Status', 'Date', 'Actions'].map(h => (
-                      <th key={h} style={{ padding: '12px 16px', textAlign: h === 'Total' || h === 'Items' ? 'right' : 'left', fontSize: '11px', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
+                    {['Bill #', 'Customer', 'Total', 'Payment', 'Status', 'Date', 'Actions'].map(h => (
+                      <th key={h} style={{ padding: '12px 16px', textAlign: h === 'Total' ? 'right' : 'left', fontSize: '11px', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {(page?.content ?? []).length === 0 ? (
-                    <tr><td colSpan={8} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>No bills found.</td></tr>
+                    <tr><td colSpan={7} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>No bills found.</td></tr>
                   ) : (page?.content ?? []).map((bill, i) => (
                     <tr key={bill.id} style={{ borderBottom: i < (page!.content.length - 1) ? '1px solid var(--border)' : 'none' }}>
                       <td style={{ padding: '14px 16px', fontWeight: '700', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '13px' }}>#{bill.billNumber}</td>
@@ -106,7 +106,6 @@ export default function AdminBillsPage() {
                         <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{bill.customerName}</div>
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{bill.customerPhone}</div>
                       </td>
-                      <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-secondary)' }}>{bill.itemCount}</td>
                       <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: '700', color: 'var(--gold)' }}>{fmt(bill.finalTotal)}</td>
                       <td style={{ padding: '14px 16px' }}><StatusBadge status={bill.paymentStatus} size="sm" /></td>
                       <td style={{ padding: '14px 16px' }}><StatusBadge status={bill.billStatus} size="sm" /></td>

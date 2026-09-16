@@ -77,6 +77,22 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
+    const redirectIfExpired = () => {
+      const token = localStorage.getItem('sxt_token');
+      if (!token) return;
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+        if (payload.exp && payload.exp * 1000 <= Date.now()) {
+          localStorage.removeItem('sxt_token'); localStorage.removeItem('sxt_user');
+          window.location.assign('/login');
+        }
+      } catch { /* the API remains the authority for malformed tokens */ }
+    };
+    redirectIfExpired(); const timer = window.setInterval(redirectIfExpired, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);

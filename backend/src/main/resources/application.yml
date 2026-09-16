@@ -79,7 +79,7 @@ app:
     number-prefix: ${BILL_NUMBER_PREFIX:ST}
 
   admin:
-    owner-name: ${ADMIN_OWNER_NAME:Soul x Time}
+    owner-name: ${ADMIN_OWNER_NAME:AFINO}
     owner-phone: ${ADMIN_OWNER_PHONE:}
 
   media:

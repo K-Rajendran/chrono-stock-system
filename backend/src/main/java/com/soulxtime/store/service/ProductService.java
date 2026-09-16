@@ -49,7 +49,7 @@ public class ProductService {
                 categoryId,
                 minPrice,
                 maxPrice,
-                stockStatus
+                stockStatus, false
         );
 
         return productRepository.findAll(specification, pageable)
@@ -97,7 +97,7 @@ public class ProductService {
             Long categoryId,
             BigDecimal minPrice,
             BigDecimal maxPrice,
-            Product.StockStatus stockStatus) {
+            Product.StockStatus stockStatus, boolean includeOutOfStock) {
 
         return (root, query, criteriaBuilder) -> {
 
@@ -107,6 +107,7 @@ public class ProductService {
             predicates.add(
                     criteriaBuilder.isTrue(root.get("active"))
             );
+            if (!includeOutOfStock) predicates.add(criteriaBuilder.greaterThan(root.get("stockQuantity"), 0));
 
             // Search by product name or brand
             if (search != null && !search.trim().isEmpty()) {
@@ -196,7 +197,7 @@ public class ProductService {
                         categoryId,
                         null,
                         null,
-                        stockStatus
+                        stockStatus, true
                 );
 
         return productRepository.findAll(specification, pageable)

@@ -59,17 +59,17 @@ export default function RegisterPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: form.name, email: form.email, phone: form.phone, password: form.password }),
+        body: JSON.stringify({ fullName: form.name, email: form.email, phone: form.phone, password: form.password }),
       });
       if (res.status === 409) throw new Error('Email already registered.');
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message ?? 'Registration failed.'); }
       const data = await res.json();
-      if (!data.token || typeof data.token !== 'string' || data.token.length < 10) {
+      if (!data.accessToken || typeof data.accessToken !== 'string' || data.accessToken.length < 10) {
         throw new Error('Invalid response from server. Please try again.');
       }
-      const userName = data.name || form.name || 'User';
-      localStorage.setItem('sxt_token', data.token);
-      localStorage.setItem('sxt_user', JSON.stringify({ name: userName, role: data.role || 'CUSTOMER', id: data.id }));
+      const userName = data.fullName || form.name || 'User';
+      localStorage.setItem('sxt_token', data.accessToken);
+      localStorage.setItem('sxt_user', JSON.stringify({ name: userName, role: data.role || 'CUSTOMER', id: data.userId, email: data.email, phone: form.phone }));
       window.dispatchEvent(new Event('auth-updated'));
       router.push('/');
     } catch (e: unknown) {
@@ -100,8 +100,8 @@ export default function RegisterPage() {
 
       <div style={{ width: '100%', maxWidth: '460px', position: 'relative', zIndex: 1 }}>
         <div style={{ textAlign: 'center', marginBottom: '36px' }}>
-          <Link href="/"><img src="/afino-logo.svg" alt="SOUL x TIME" style={{ width: '44px', height: '44px', margin: '0 auto 10px', filter: 'invert(1) sepia(1) saturate(2) hue-rotate(185deg) brightness(1.3)' }} /></Link>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: '600', letterSpacing: '0.15em', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>SOUL × TIME</div>
+          <Link href="/"><img src="/afino-logo.svg" alt="AFINO" style={{ width: '44px', height: '44px', margin: '0 auto 10px', filter: 'invert(1) sepia(1) saturate(2) hue-rotate(185deg) brightness(1.3)' }} /></Link>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: '600', letterSpacing: '0.15em', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>AFINO</div>
           <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '6px' }}>Create your account</p>
         </div>
 

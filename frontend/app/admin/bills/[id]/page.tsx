@@ -9,12 +9,12 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 interface BillItem {
   id: string;
   productId: string;
-  productNameSnapshot: string;
-  sellingPriceSnapshot: number;
-  discountSnapshot: number;
-  discountType: 'NONE' | 'PERCENTAGE' | 'FIXED';
+  productName: string;
+  sellingPrice: number;
+  discountValue: number;
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT';
   quantity: number;
-  lineTotal: number;
+  totalPrice: number;
 }
 
 interface Bill {
@@ -28,7 +28,7 @@ interface Bill {
   finalTotal: number;
   paymentMethod: string;
   paymentStatus: string;
-  transactionReference: string;
+  transactionRef: string;
   billStatus: string;
   notes: string;
   createdAt: string;
@@ -75,7 +75,7 @@ export default function AdminBillDetailPage() {
       setEditData({
         paymentMethod: data.paymentMethod,
         paymentStatus: data.paymentStatus,
-        transactionReference: data.transactionReference ?? '',
+        transactionReference: data.transactionRef ?? '',
         billStatus: data.billStatus,
         notes: data.notes ?? '',
       });
@@ -92,7 +92,7 @@ export default function AdminBillDetailPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(editData),
+        body: JSON.stringify({ ...editData, transactionRef: editData.transactionReference }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -115,8 +115,8 @@ export default function AdminBillDetailPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (data.whatsappUrl) {
-        window.open(data.whatsappUrl, '_blank');
+      if (data.whatsappLink) {
+        window.open(data.whatsappLink, '_blank');
       } else {
         showToast(data.message ?? 'WhatsApp message prepared.');
       }
@@ -126,7 +126,7 @@ export default function AdminBillDetailPage() {
         `*AFINO — Bill #${bill.billNumber}*\n\n` +
           `Customer: ${bill.customerName}\n` +
           `Date: ${fmtDate(bill.createdAt)}\n\n` +
-          bill.items.map(i => `• ${i.productNameSnapshot} × ${i.quantity} — ${fmt(i.lineTotal)}`).join('\n') +
+          bill.items.map(i => `• ${i.productName} × ${i.quantity} — ${fmt(i.totalPrice)}`).join('\n') +
           `\n\nTotal: *${fmt(bill.finalTotal)}*\n` +
           `Payment: ${bill.paymentMethod} | ${bill.paymentStatus}`
       );
@@ -139,7 +139,7 @@ export default function AdminBillDetailPage() {
     try {
       const token = localStorage.getItem('sxt_token');
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}/cancel`, {
-        method: 'PATCH',
+        method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();
@@ -245,13 +245,13 @@ export default function AdminBillDetailPage() {
               <tbody>
                 {bill.items.map((item, i) => (
                   <tr key={item.id} style={{ borderBottom: i < bill.items.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                    <td style={{ padding: '14px 20px', color: 'var(--text-primary)', fontWeight: '500' }}>{item.productNameSnapshot}</td>
-                    <td style={{ padding: '14px 20px', textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(item.sellingPriceSnapshot)}</td>
+                    <td style={{ padding: '14px 20px', color: 'var(--text-primary)', fontWeight: '500' }}>{item.productName}</td>
+                    <td style={{ padding: '14px 20px', textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(item.sellingPrice)}</td>
                     <td style={{ padding: '14px 20px', textAlign: 'right', color: 'var(--text-secondary)' }}>{item.quantity}</td>
                     <td style={{ padding: '14px 20px', textAlign: 'right', color: 'var(--text-secondary)' }}>
-                      {item.discountSnapshot > 0 ? (item.discountType === 'PERCENTAGE' ? `${item.discountSnapshot}%` : fmt(item.discountSnapshot)) : '—'}
+                      {item.discountValue > 0 ? (item.discountType === 'PERCENTAGE' ? `${item.discountValue}%` : fmt(item.discountValue)) : '—'}
                     </td>
-                    <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: '700', color: 'var(--text-primary)' }}>{fmt(item.lineTotal)}</td>
+                    <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: '700', color: 'var(--text-primary)' }}>{fmt(item.totalPrice)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -294,7 +294,7 @@ export default function AdminBillDetailPage() {
                   {[
                     ['Method', bill.paymentMethod],
                     ['Status', null],
-                    ['Reference', bill.transactionReference || '—'],
+                    ['Reference', bill.transactionRef || '—'],
                   ].map(([label, val]) => (
                     <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
                       <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
@@ -330,7 +330,7 @@ export default function AdminBillDetailPage() {
           {/* Footer */}
           <div style={{ padding: '20px 32px', borderTop: '1px solid var(--border)', textAlign: 'center', background: 'rgba(8,20,40,0.4)' }}>
             <p style={{ fontFamily: 'var(--font-display)', fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic', letterSpacing: '0.08em' }}>
-              Thank you for choosing SOUL × TIME — Where Time Finds Its Soul
+              Thank you for choosing AFINO — Where Time Finds Its Soul
             </p>
           </div>
         </div>

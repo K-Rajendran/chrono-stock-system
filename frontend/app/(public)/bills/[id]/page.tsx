@@ -9,13 +9,13 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 interface BillItem {
   id: string;
   productName: string;
-  productNameSnapshot: string;
-  sellingPriceSnapshot: number;
+  productName: string;
+  sellingPrice: number;
   purchasePriceSnapshot?: number;
-  discountSnapshot: number;
+  discountValue: number;
   discountType: 'PERCENTAGE' | 'FIXED';
   quantity: number;
-  lineTotal: number;
+  totalPrice: number;
 }
 
 interface Bill {
@@ -31,7 +31,7 @@ interface Bill {
   finalTotal: number;
   paymentMethod: string;
   paymentStatus: string;
-  transactionReference?: string;
+  transactionRef?: string;
   billStatus: string;
   notes?: string;
 }
@@ -93,10 +93,10 @@ export default function BillDetailPage() {
   const handleWhatsApp = () => {
     if (!bill) return;
     const msg = encodeURIComponent(
-      `*SOUL × TIME — Bill #${bill.billNumber}*\n\n` +
+      `*AFINO — Bill #${bill.billNumber}*\n\n` +
         `Customer: ${bill.customerName}\n` +
         `Date: ${formatDate(bill.createdAt)}\n\n` +
-        bill.items.map(i => `• ${i.productNameSnapshot} × ${i.quantity} — ${formatCurrency(i.lineTotal)}`).join('\n') +
+        bill.items.map(i => `• ${i.productName} × ${i.quantity} — ${formatCurrency(i.totalPrice)}`).join('\n') +
         `\n\nTotal: *${formatCurrency(bill.finalTotal)}*\n` +
         `Payment: ${PAYMENT_METHOD_LABELS[bill.paymentMethod]} | ${bill.paymentStatus}\n\n` +
         `Thank you for your purchase! 🕐`
@@ -254,7 +254,7 @@ export default function BillDetailPage() {
                   marginBottom: '4px',
                 }}
               >
-                SOUL × TIME
+                AFINO
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', letterSpacing: '0.15em', fontStyle: 'italic' }}>
                 Where Time Finds Its Soul
@@ -313,10 +313,10 @@ export default function BillDetailPage() {
               <tbody>
                 {bill.items.map((item, i) => {
                   const discountDisplay =
-                    item.discountSnapshot > 0
+                    item.discountValue > 0
                       ? item.discountType === 'PERCENTAGE'
-                        ? `${item.discountSnapshot}%`
-                        : formatCurrency(item.discountSnapshot)
+                        ? `${item.discountValue}%`
+                        : formatCurrency(item.discountValue)
                       : '—';
 
                   return (
@@ -328,10 +328,10 @@ export default function BillDetailPage() {
                       }}
                     >
                       <td style={{ padding: '16px 20px', color: 'var(--text-primary)', fontWeight: '500' }}>
-                        {item.productNameSnapshot}
+                        {item.productName}
                       </td>
                       <td style={{ padding: '16px 20px', textAlign: 'right', color: 'var(--text-secondary)' }}>
-                        {formatCurrency(item.sellingPriceSnapshot)}
+                        {formatCurrency(item.sellingPrice)}
                       </td>
                       <td style={{ padding: '16px 20px', textAlign: 'right', color: 'var(--text-secondary)' }}>
                         {item.quantity}
@@ -340,7 +340,7 @@ export default function BillDetailPage() {
                         {discountDisplay}
                       </td>
                       <td style={{ padding: '16px 20px', textAlign: 'right', fontWeight: '600', color: 'var(--text-primary)' }}>
-                        {formatCurrency(item.lineTotal)}
+                        {formatCurrency(item.totalPrice)}
                       </td>
                     </tr>
                   );
@@ -372,10 +372,10 @@ export default function BillDetailPage() {
                   <span style={{ color: 'var(--text-secondary)' }}>Status</span>
                   <StatusBadge status={bill.paymentStatus} size="sm" />
                 </div>
-                {bill.transactionReference && (
+                {bill.transactionRef && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Reference</span>
-                    <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '12px' }}>{bill.transactionReference}</span>
+                    <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '12px' }}>{bill.transactionRef}</span>
                   </div>
                 )}
               </div>
@@ -452,7 +452,7 @@ export default function BillDetailPage() {
                 letterSpacing: '0.08em',
               }}
             >
-              Thank you for choosing SOUL × TIME — Where Time Finds Its Soul
+              Thank you for choosing AFINO — Where Time Finds Its Soul
             </p>
           </div>
         </div>

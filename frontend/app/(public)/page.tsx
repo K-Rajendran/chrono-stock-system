@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
+interface Category { id: number; name: string; description: string; imageUrl: string | null; }
+interface Product { id: number; name: string; brand: string; description: string; effectivePrice: number; primaryImageUrl: string | null; categoryName: string | null; }
+const money = (value: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);
+
 // ── Animated ambient ring ──────────────────────────────────────────
 function AmbientRing({ size = 300, color = 'var(--blue-accent)', delay = '0s', opacity = 0.08 }) {
   return (
@@ -22,19 +26,19 @@ function AmbientRing({ size = 300, color = 'var(--blue-accent)', delay = '0s', o
 }
 
 // ── Category card ──────────────────────────────────────────────────
-function CategoryCard({ emoji, title, count, href }: { emoji: string; title: string; count: string; href: string }) {
+function CategoryCard({ category }: { category: Category }) {
   const [hovered, setHovered] = useState(false);
 
   return (
     <Link
-      href={href}
+      href={`/products?categoryId=${category.id}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'flex-start',
-        padding: '28px 24px',
+        alignItems: 'center',
+        padding: '16px',
         background: hovered ? 'rgba(13, 32, 64, 0.9)' : 'rgba(8, 20, 40, 0.6)',
         border: `1px solid ${hovered ? 'rgba(61,143,212,0.4)' : 'var(--border)'}`,
         borderRadius: 'var(--radius-lg)',
@@ -46,22 +50,24 @@ function CategoryCard({ emoji, title, count, href }: { emoji: string; title: str
         textDecoration: 'none',
       }}
     >
-      <span style={{ fontSize: '32px', marginBottom: '12px' }}>{emoji}</span>
+      <div style={{ width: 76, height: 76, borderRadius: '50%', overflow: 'hidden', background: 'linear-gradient(135deg, rgba(61,143,212,.24), rgba(201,168,76,.18))', marginBottom: '12px', border: '1px solid var(--border)' }}>
+        {category.imageUrl && <img src={category.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+      </div>
       <span
         style={{
           fontFamily: 'var(--font-heading)',
-          fontSize: '17px',
+          fontSize: '15px',
           fontWeight: '600',
           color: 'var(--text-primary)',
           marginBottom: '4px',
         }}
       >
-        {title}
+        {category.name}
       </span>
-      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{count}</span>
+      <span style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', minHeight: '18px' }}>{category.description || 'Explore collection'}</span>
       <span
         style={{
-          marginTop: '16px',
+        marginTop: '10px',
           fontSize: '12px',
           color: hovered ? 'var(--blue-bright)' : 'var(--text-muted)',
           display: 'flex',
@@ -102,7 +108,7 @@ function FeatureBadge({ icon, label, sub }: { icon: string; label: string; sub: 
 }
 
 // ── Product card ──────────────────────────────────────────────────
-function FeaturedProductCard({ name, price, tag, image }: { name: string; price: string; tag?: string; image?: string }) {
+function FeaturedProductCard({ product, tag }: { product: Product; tag?: string }) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -131,14 +137,7 @@ function FeaturedProductCard({ name, price, tag, image }: { name: string; price:
           overflow: 'hidden',
         }}
       >
-        {image ? (
-          <img src={image} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        ) : (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '64px', marginBottom: '8px' }}>⌚</div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', letterSpacing: '0.1em' }}>PREMIUM WATCH</div>
-          </div>
-        )}
+        {product.primaryImageUrl && <img src={product.primaryImageUrl} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
         {tag && (
           <span
             style={{
@@ -170,7 +169,7 @@ function FeaturedProductCard({ name, price, tag, image }: { name: string; price:
             marginBottom: '8px',
           }}
         >
-          {name}
+          {product.name}
         </div>
         <div
           style={{
@@ -182,7 +181,7 @@ function FeaturedProductCard({ name, price, tag, image }: { name: string; price:
             backgroundClip: 'text',
           }}
         >
-          {price}
+          {money(product.effectivePrice)}
         </div>
       </div>
     </div>
@@ -193,11 +192,27 @@ function FeaturedProductCard({ name, price, tag, image }: { name: string; price:
 export default function HomePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoError, setVideoError] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [featured, setFeatured] = useState<Product[]>([]);
+  const [newArrival, setNewArrival] = useState<Product | null>(null);
 
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.play().catch(() => setVideoError(true));
     }
+  }, []);
+
+  useEffect(() => {
+    const base = process.env.NEXT_PUBLIC_API_URL;
+    Promise.all([
+      fetch(`${base}/api/categories`).then(r => r.ok ? r.json() : []),
+      fetch(`${base}/api/products/featured`).then(r => r.ok ? r.json() : []),
+      fetch(`${base}/api/products?page=0&size=1&sortBy=createdAt&sortDir=desc`).then(r => r.ok ? r.json() : { content: [] }),
+    ]).then(([categoryData, featuredData, arrivals]) => {
+      setCategories(categoryData);
+      setFeatured(featuredData);
+      setNewArrival(arrivals.content?.[0] ?? null);
+    }).catch(() => undefined);
   }, []);
 
   return (
@@ -638,15 +653,11 @@ export default function HomePage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-              gap: '16px',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+              gap: '12px',
             }}
           >
-            <CategoryCard emoji="⌚" title="Luxury" count="Premium collection" href="/products?category=luxury" />
-            <CategoryCard emoji="🏆" title="Sport" count="Active lifestyle" href="/products?category=sport" />
-            <CategoryCard emoji="💼" title="Classic" count="Timeless elegance" href="/products?category=classic" />
-            <CategoryCard emoji="🎯" title="Minimalist" count="Clean design" href="/products?category=minimalist" />
-            <CategoryCard emoji="✨" title="Limited" count="Exclusive editions" href="/products?category=limited" />
+            {categories.map(category => <CategoryCard key={category.id} category={category} />)}
           </div>
         </div>
       </section>
@@ -677,15 +688,16 @@ export default function HomePage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-              gap: '20px',
-              marginBottom: '48px',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+              gap: '16px',
+              marginBottom: '32px',
             }}
           >
-            <FeaturedProductCard name="Chronograph Elite" price="₹38,500" tag="NEW" />
-            <FeaturedProductCard name="Ocean Diver Pro" price="₹52,000" tag="BESTSELLER" />
-            <FeaturedProductCard name="Heritage Classic" price="₹29,999" />
-            <FeaturedProductCard name="Midnight Tourbillon" price="₹1,25,000" tag="LIMITED" />
+            {featured.slice(0, 4).map((product, index) => (
+              <Link key={product.id} href={`/products/${product.id}`} style={{ textDecoration: 'none' }}>
+                <FeaturedProductCard product={product} tag={index === 0 ? 'FEATURED' : undefined} />
+              </Link>
+            ))}
           </div>
 
           <div style={{ textAlign: 'center' }}>
@@ -751,8 +763,8 @@ export default function HomePage() {
                 minHeight: '300px',
               }}
             >
-              <AmbientRing size={220} color="var(--gold)" delay="0s" opacity={0.12} />
-              <div style={{ fontSize: '80px', zIndex: 1, animation: 'float-watch 5s ease-in-out infinite' }}>⌚</div>
+               <AmbientRing size={220} color="var(--gold)" delay="0s" opacity={0.12} />
+               {newArrival?.primaryImageUrl && <img src={newArrival.primaryImageUrl} alt={newArrival.name} style={{ width: '100%', height: '100%', maxHeight: 320, objectFit: 'contain', zIndex: 1, padding: '20px' }} />}
             </div>
 
             {/* Right: text */}
@@ -784,7 +796,7 @@ export default function HomePage() {
                   marginBottom: '16px',
                 }}
               >
-                Small Size.{' '}
+                 {newArrival?.name ?? 'Fresh additions.'}{' '}
                 <span
                   style={{
                     background: 'var(--gold-gradient)',
@@ -794,14 +806,14 @@ export default function HomePage() {
                     fontStyle: 'italic',
                   }}
                 >
-                  Big Performance.
+                 Just arrived.
                 </span>
               </h3>
               <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: '1.7', marginBottom: '32px', maxWidth: '340px' }}>
-                Experience precision like never before. Our newest arrivals blend ultra-slim engineering with timeless artistry.
+                 {newArrival?.description ?? 'Discover the latest timepieces added to the AFINO collection.'}
               </p>
               <Link
-                href="/products"
+                 href={newArrival ? `/products/${newArrival.id}` : '/products'}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -821,7 +833,7 @@ export default function HomePage() {
                 onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
                 onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
               >
-                Shop Now →
+                 View New Arrival →
               </Link>
             </div>
           </div>

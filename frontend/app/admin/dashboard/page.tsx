@@ -6,24 +6,12 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 interface DashboardStats {
-  todayRevenue: number;
-  periodRevenue: number;
-  totalRevenue: number;
-  todayGoodsCost: number;
-  periodGoodsCost: number;
-  totalGoodsCost: number;
-  todayProfit: number;
-  periodProfit: number;
-  totalProfit: number;
-  todayBills: number;
-  periodBills: number;
-  totalBills: number;
-  totalProducts: number;
-  totalStock: number;
+  todayRevenue: number; netRevenuePeriod: number; goodsCostPeriod: number; grossProfitPeriod: number;
+  todayBillCount: number; periodBillCount: number; totalBillCount: number;
+  totalActiveProducts: number; totalStockUnits: number;
   lowStockCount: number;
   outOfStockCount: number;
-  pendingRequests: number;
-  pendingBills: number;
+  pendingBills: RecentBill[];
 }
 
 interface RecentBill {
@@ -51,12 +39,9 @@ const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 
 const PERIODS = [
-  { label: 'Today', value: 'TODAY' },
-  { label: 'Yesterday', value: 'YESTERDAY' },
-  { label: 'Last 7 days', value: 'LAST_7' },
-  { label: 'Last 30 days', value: 'LAST_30' },
-  { label: 'This Month', value: 'THIS_MONTH' },
-  { label: 'All Time', value: 'ALL' },
+  { label: 'Today', value: 'today' }, { label: 'Yesterday', value: 'yesterday' },
+  { label: 'Last 7 days', value: 'last_7' }, { label: 'Last 30 days', value: 'last_30' },
+  { label: 'This Month', value: 'this_month' }, { label: 'All Time', value: 'all_time' },
 ];
 
 function MetricCard({
@@ -101,7 +86,7 @@ export default function AdminDashboard() {
   const [recentBills, setRecentBills] = useState<RecentBill[]>([]);
   const [lowStock, setLowStock] = useState<LowStockProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('LAST_7');
+  const [period, setPeriod] = useState('last_7');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => { fetchAll(); }, [period]);
@@ -117,7 +102,7 @@ export default function AdminDashboard() {
       const [statsRes, billsRes, stockRes] = await Promise.all([
         fetch(`${base}/api/admin/dashboard?period=${period}`, { headers }),
         fetch(`${base}/api/admin/bills?page=0&size=5&sort=createdAt,desc`, { headers }),
-        fetch(`${base}/api/admin/products/low-stock?page=0&size=5`, { headers }),
+        fetch(`${base}/api/admin/inventory/low-stock`, { headers }),
       ]);
 
       if (!statsRes.ok) throw new Error('stats');
@@ -189,20 +174,8 @@ export default function AdminDashboard() {
       {!loading && stats && (
         <>
           {/* Alert banners */}
-          {(stats.pendingRequests > 0 || stats.outOfStockCount > 0) && (
+          {(stats.outOfStockCount > 0) && (
             <div style={{ display: 'flex', gap: '12px', marginBottom: '28px', flexWrap: 'wrap' }}>
-              {stats.pendingRequests > 0 && (
-                <Link href="/admin/purchase-requests" style={{ flex: '1 1 200px', display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 20px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 'var(--radius-md)', textDecoration: 'none', transition: 'all var(--transition)' }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(245,158,11,0.14)'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(245,158,11,0.08)'; }}
-                >
-                  <span style={{ fontSize: '20px' }}>🔔</span>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#fbbf24' }}>{stats.pendingRequests} pending request{stats.pendingRequests !== 1 ? 's' : ''}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Tap to review</div>
-                  </div>
-                </Link>
-              )}
               {stats.outOfStockCount > 0 && (
                 <Link href="/admin/inventory" style={{ flex: '1 1 200px', display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 20px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius-md)', textDecoration: 'none', transition: 'all var(--transition)' }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.14)'; }}
@@ -221,18 +194,18 @@ export default function AdminDashboard() {
           {/* Revenue metrics */}
           <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', color: 'var(--text-muted)', marginBottom: '16px', fontWeight: '500' }}>Revenue & Profit</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
-            <MetricCard title="Revenue (Period)" value={fmt(stats.periodRevenue)} sub={`Today: ${fmt(stats.todayRevenue)}`} icon="💰" accent="gold" />
-            <MetricCard title="Goods Cost" value={fmt(stats.periodGoodsCost)} sub={`Today: ${fmt(stats.todayGoodsCost)}`} icon="📦" accent="blue" />
-            <MetricCard title="Gross Profit" value={fmt(stats.periodProfit)} sub={`Today: ${fmt(stats.todayProfit)}`} icon="📈" accent="green" />
-            <MetricCard title="Total Revenue" value={fmt(stats.totalRevenue)} sub={`All time`} icon="🏦" accent="gold" />
+            <MetricCard title="Revenue (Period)" value={fmt(stats.netRevenuePeriod)} sub={`Today: ${fmt(stats.todayRevenue)}`} icon="💰" accent="gold" />
+            <MetricCard title="Goods Cost" value={fmt(stats.goodsCostPeriod)} icon="📦" accent="blue" />
+            <MetricCard title="Gross Profit" value={fmt(stats.grossProfitPeriod)} icon="📈" accent="green" />
+            <MetricCard title="Total Revenue" value={fmt(stats.netRevenuePeriod)} sub="Selected period" icon="🏦" accent="gold" />
           </div>
 
           {/* Billing & Inventory */}
           <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', color: 'var(--text-muted)', marginBottom: '16px', fontWeight: '500' }}>Bills & Inventory</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
-            <MetricCard title="Bills (Period)" value={String(stats.periodBills)} sub={`Today: ${stats.todayBills}`} icon="🧾" accent="blue" />
-            <MetricCard title="Total Bills" value={String(stats.totalBills)} icon="📋" accent="blue" />
-            <MetricCard title="Products" value={String(stats.totalProducts)} sub={`${stats.totalStock} units in stock`} icon="⌚" accent="gold" />
+            <MetricCard title="Bills (Period)" value={String(stats.periodBillCount)} sub={`Today: ${stats.todayBillCount}`} icon="🧾" accent="blue" />
+            <MetricCard title="Total Bills" value={String(stats.totalBillCount)} icon="📋" accent="blue" />
+            <MetricCard title="Products" value={String(stats.totalActiveProducts)} sub={`${stats.totalStockUnits} units in stock`} icon="⌚" accent="gold" />
             <MetricCard title="Stock Alerts" value={String(stats.lowStockCount + stats.outOfStockCount)} sub={`${stats.lowStockCount} low · ${stats.outOfStockCount} out`} icon="⚠️" accent={stats.outOfStockCount > 0 ? 'red' : 'blue'} />
           </div>
 

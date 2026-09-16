@@ -13,7 +13,7 @@ interface Bill {
   billStatus: string;
   paymentStatus: string;
   createdAt: string;
-  itemCount: number;
+  items: unknown[];
 }
 
 const formatCurrency = (amount: number) =>
@@ -116,7 +116,7 @@ export default function BillsPage() {
                   Bill #{bill.billNumber}
                 </div>
                 <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                  {formatDate(bill.createdAt)} · {bill.itemCount} item{bill.itemCount !== 1 ? 's' : ''}
+                  {formatDate(bill.createdAt)} · {bill.items.length} item{bill.items.length !== 1 ? 's' : ''}
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>

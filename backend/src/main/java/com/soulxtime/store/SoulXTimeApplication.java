@@ -8,7 +8,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 /**
- * SOUL x TIME — Premium Watch Commerce Platform
+ * AFINO — Premium Watch Commerce Platform
  * Main application entry point.
  *
  * Architecture principle: Spring Boot owns all critical business logic.

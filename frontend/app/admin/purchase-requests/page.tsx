@@ -7,12 +7,11 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 interface PurchaseRequest {
   id: string;
-  requestNumber: string;
+  referenceId: string;
   customerName: string;
   customerPhone: string;
   status: string;
-  total: number;
-  itemCount: number;
+  totalAmount: number;
   createdAt: string;
 }
 
@@ -77,23 +76,22 @@ export default function AdminPurchaseRequestsPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(8,20,40,0.5)' }}>
-                    {['Request #', 'Customer', 'Items', 'Total', 'Status', 'Date', 'Action'].map(h => (
-                      <th key={h} style={{ padding: '12px 16px', textAlign: h === 'Total' || h === 'Items' ? 'right' : 'left', fontSize: '11px', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
+                    {['Request #', 'Customer', 'Total', 'Status', 'Date', 'Action'].map(h => (
+                      <th key={h} style={{ padding: '12px 16px', textAlign: h === 'Total' ? 'right' : 'left', fontSize: '11px', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {(page?.content ?? []).length === 0 ? (
-                    <tr><td colSpan={7} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>No purchase requests found.</td></tr>
+                    <tr><td colSpan={6} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>No purchase requests found.</td></tr>
                   ) : (page?.content ?? []).map((req, i) => (
                     <tr key={req.id} style={{ borderBottom: i < (page!.content.length - 1) ? '1px solid var(--border)' : 'none' }}>
-                      <td style={{ padding: '14px 16px', fontWeight: '700', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '13px' }}>#{req.requestNumber}</td>
+                      <td style={{ padding: '14px 16px', fontWeight: '700', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '13px' }}>#{req.referenceId}</td>
                       <td style={{ padding: '14px 16px' }}>
                         <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{req.customerName}</div>
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{req.customerPhone}</div>
                       </td>
-                      <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-secondary)' }}>{req.itemCount}</td>
-                      <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: '700', color: 'var(--gold)' }}>{fmt(req.total)}</td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: '700', color: 'var(--gold)' }}>{fmt(req.totalAmount)}</td>
                       <td style={{ padding: '14px 16px' }}><StatusBadge status={req.status} size="sm" /></td>
                       <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '13px', whiteSpace: 'nowrap' }}>{fmtDate(req.createdAt)}</td>
                       <td style={{ padding: '14px 16px' }}>

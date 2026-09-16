@@ -17,7 +17,6 @@ interface Product {
   discountType: string;
   discountAmount: number;
   stockStatus: string;
-  stockQuantity: number;
   primaryImageUrl?: string;
   imageUrls?: string[];
   specifications?: Record<string, string>;
@@ -55,8 +54,9 @@ export default function ProductDetailPage() {
     try {
       const existing = JSON.parse(localStorage.getItem('sxt_cart') ?? '[]');
       const idx = existing.findIndex((i: { id: string }) => i.id === product.id);
-      if (idx >= 0) existing[idx].quantity += qty;
-      else existing.push({ id: product.id, name: product.name, price: product.effectivePrice, image: product.primaryImageUrl, quantity: qty });
+      const quantity = Math.max(1, Number(qty) || 1);
+      if (idx >= 0) existing[idx].quantity = (Number(existing[idx].quantity) || 0) + quantity;
+      else existing.push({ id: product.id, name: product.name, price: product.effectivePrice, image: product.primaryImageUrl, quantity });
       localStorage.setItem('sxt_cart', JSON.stringify(existing));
       window.dispatchEvent(new Event('cart-updated'));
       setAddedToCart(true);
@@ -159,21 +159,21 @@ export default function ProductDetailPage() {
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quantity</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                    <button onClick={() => setQty(q => Math.max(1, q - 1))}
+                    <button onClick={() => setQty(q => Math.max(1, (Number(q) || 1) - 1))}
                       style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '18px', transition: 'background var(--transition)' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(61,143,212,0.08)'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
                       −
                     </button>
                     <span style={{ width: '48px', textAlign: 'center', fontWeight: '600', color: 'var(--text-primary)', fontSize: '16px' }}>{qty}</span>
-                    <button onClick={() => setQty(q => Math.min(product.stockQuantity, q + 1))}
+                    <button onClick={() => setQty(q => Math.min(99, (Number(q) || 1) + 1))}
                       style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '18px', transition: 'background var(--transition)' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(61,143,212,0.08)'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
                       +
                     </button>
                   </div>
-                  <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{product.stockQuantity} available</span>
+                  <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Available to request</span>
                 </div>
 
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>

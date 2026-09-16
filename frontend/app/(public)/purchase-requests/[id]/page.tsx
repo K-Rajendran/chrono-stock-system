@@ -10,9 +10,9 @@ interface PurchaseRequestItem {
   id: string;
   productId: string;
   productName: string;
-  productNameSnapshot: string;
-  sellingPriceSnapshot: number;
-  discountSnapshot: number;
+  productName: string;
+  unitPrice: number;
+  discountValue: number;
   discountType: 'PERCENTAGE' | 'FIXED';
   quantity: number;
   lineTotal: number;
@@ -20,14 +20,14 @@ interface PurchaseRequestItem {
 
 interface PurchaseRequest {
   id: string;
-  requestNumber: string;
+  referenceId: string;
   status: string;
   customerName: string;
   customerPhone: string;
   items: PurchaseRequestItem[];
   subtotal: number;
   totalDiscount: number;
-  total: number;
+  totalAmount: number;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -76,7 +76,7 @@ export default function PurchaseRequestDetailPage() {
     const token = localStorage.getItem('sxt_token');
     if (!token) { router.push('/login'); return; }
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customer/purchase-requests/${id}`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchase-requests/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => {
@@ -99,16 +99,16 @@ export default function PurchaseRequestDetailPage() {
   const handleWhatsApp = () => {
     if (!request) return;
     const msg = encodeURIComponent(
-      `*SOUL × TIME — Purchase Request #${request.requestNumber}*\n\n` +
+      `*AFINO — New Purchase Request #${request.referenceId}*\n\n` +
         `Customer: ${request.customerName}\n` +
         `Phone: ${request.customerPhone}\n` +
         `Date: ${formatDateTime(request.createdAt)}\n\n` +
         `*Items:*\n` +
-        request.items.map((i) => `• ${i.productNameSnapshot} × ${i.quantity} — ${formatCurrency(i.lineTotal)}`).join('\n') +
+        request.items.map((i) => `• ${i.productName} × ${i.quantity} — ${formatCurrency(i.lineTotal)}`).join('\n') +
         `\n\nSubtotal: ${formatCurrency(request.subtotal)}\n` +
         (request.totalDiscount > 0 ? `Discount: −${formatCurrency(request.totalDiscount)}\n` : '') +
-        `*Total: ${formatCurrency(request.total)}*\n\n` +
-        `Request ID: ${request.requestNumber}`
+        `*Total: ${formatCurrency(request.totalAmount)}*\n\n` +
+        `Request ID: ${request.referenceId}`
     );
     window.open(`https://wa.me/?text=${msg}`, '_blank');
   };
@@ -184,7 +184,7 @@ export default function PurchaseRequestDetailPage() {
             <div>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '8px' }}>Purchase Request</div>
               <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.4rem, 3vw, 2rem)', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '8px' }}>
-                #{request.requestNumber}
+                #{request.referenceId}
               </h1>
               <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Submitted {formatDateTime(request.createdAt)}</div>
             </div>
@@ -272,8 +272,8 @@ export default function PurchaseRequestDetailPage() {
               <tbody>
                 {request.items.map((item, i) => (
                   <tr key={item.id} style={{ borderBottom: i < request.items.length - 1 ? '1px solid var(--border)' : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(8,20,40,0.2)' }}>
-                    <td style={{ padding: '14px 16px', color: 'var(--text-primary)', fontWeight: '500' }}>{item.productNameSnapshot}</td>
-                    <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-secondary)' }}>{formatCurrency(item.sellingPriceSnapshot)}</td>
+                    <td style={{ padding: '14px 16px', color: 'var(--text-primary)', fontWeight: '500' }}>{item.productName}</td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-secondary)' }}>{formatCurrency(item.unitPrice)}</td>
                     <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-secondary)' }}>{item.quantity}</td>
                     <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: '600', color: 'var(--text-primary)' }}>{formatCurrency(item.lineTotal)}</td>
                   </tr>
@@ -296,7 +296,7 @@ export default function PurchaseRequestDetailPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontSize: '18px', fontWeight: '700' }}>
                 <span style={{ color: 'var(--text-primary)' }}>Total</span>
                 <span style={{ background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                  {formatCurrency(request.total)}
+                  {formatCurrency(request.totalAmount)}
                 </span>
               </div>
             </div>

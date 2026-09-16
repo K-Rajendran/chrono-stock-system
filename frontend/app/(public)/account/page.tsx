@@ -6,8 +6,8 @@ import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
-interface UserProfile { id: string; name: string; email: string; phone: string; role: string; }
-interface PurchaseRequest { id: string; requestNumber: string; status: string; total: number; createdAt: string; itemCount: number; }
+interface UserProfile { id: string; fullName: string; email: string; phone: string; role: string; }
+interface PurchaseRequest { id: string; referenceId: string; status: string; totalAmount: number; createdAt: string; items: unknown[]; }
 interface Bill { id: string; billNumber: string; billStatus: string; paymentStatus: string; finalTotal: number; createdAt: string; }
 
 const fmt = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
@@ -38,12 +38,12 @@ export default function AccountPage() {
 
     Promise.all([
       fetch(`${base}/api/customer/profile`, { headers }).then(r => { if (r.status === 401) throw new Error('auth'); return r.json(); }),
-      fetch(`${base}/api/customer/purchase-requests?page=0&size=20&sort=createdAt,desc`, { headers }).then(r => r.json()).catch(() => []),
+      fetch(`${base}/api/purchase-requests?page=0&size=20`, { headers }).then(r => r.json()).catch(() => []),
       fetch(`${base}/api/customer/bills?page=0&size=20&sort=createdAt,desc`, { headers }).then(r => r.json()).catch(() => []),
     ])
       .then(([p, reqs, bs]) => {
         setProfile(p);
-        setEditForm({ name: p.name, phone: p.phone });
+        setEditForm({ name: p.fullName, phone: p.phone });
         setRequests(reqs.content ?? reqs ?? []);
         setBills(bs.content ?? bs ?? []);
       })
@@ -58,13 +58,13 @@ export default function AccountPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customer/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify({ fullName: editForm.name, phone: editForm.phone }),
       });
       if (!res.ok) throw new Error();
       const updated = await res.json();
       setProfile(updated);
       const user = JSON.parse(localStorage.getItem('sxt_user') ?? '{}');
-      localStorage.setItem('sxt_user', JSON.stringify({ ...user, name: updated.name }));
+      localStorage.setItem('sxt_user', JSON.stringify({ ...user, name: updated.fullName }));
       setEditing(false);
       showToast('Profile updated successfully.');
     } catch { showToast('Failed to update profile.'); }
@@ -88,10 +88,10 @@ export default function AccountPage() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '40px' }}>
         <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--gold-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: '700', color: '#000', flexShrink: 0 }}>
-          {profile?.name?.[0]?.toUpperCase() ?? '?'}
+          {profile?.fullName?.[0]?.toUpperCase() ?? '?'}
         </div>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.4rem, 3vw, 2rem)', fontWeight: '700', color: 'var(--text-primary)' }}>{profile?.name}</h1>
+          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.4rem, 3vw, 2rem)', fontWeight: '700', color: 'var(--text-primary)' }}>{profile?.fullName}</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '2px' }}>{profile?.email}</p>
         </div>
       </div>
@@ -127,13 +127,13 @@ export default function AccountPage() {
             ) : (
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={handleSaveProfile} disabled={saving} style={{ padding: '7px 14px', background: 'var(--gold-gradient)', border: 'none', borderRadius: 'var(--radius-sm)', color: '#000', fontSize: '13px', fontWeight: '700', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save'}</button>
-                <button onClick={() => { setEditing(false); setEditForm({ name: profile?.name ?? '', phone: profile?.phone ?? '' }); }} style={{ padding: '7px 14px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
+                <button onClick={() => { setEditing(false); setEditForm({ name: profile?.fullName ?? '', phone: profile?.phone ?? '' }); }} style={{ padding: '7px 14px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
               </div>
             )}
           </div>
           <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {[
-              { label: 'Full Name', key: 'name', value: profile?.name ?? '', editable: true },
+              { label: 'Full Name', key: 'name', value: profile?.fullName ?? '', editable: true },
               { label: 'Email', key: 'email', value: profile?.email ?? '', editable: false },
               { label: 'Phone', key: 'phone', value: profile?.phone ?? '', editable: true },
               { label: 'Account Type', key: 'role', value: profile?.role ?? '', editable: false },
@@ -174,12 +174,12 @@ export default function AccountPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 <div style={{ width: '40px', height: '40px', borderRadius: 'var(--radius-sm)', background: 'rgba(61,143,212,0.1)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>📋</div>
                 <div>
-                  <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '2px' }}>Request #{req.requestNumber}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{fmtDate(req.createdAt)} · {req.itemCount} item{req.itemCount !== 1 ? 's' : ''}</div>
+                  <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '2px' }}>Request #{req.referenceId}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{fmtDate(req.createdAt)} · {req.items.length} item{req.items.length !== 1 ? 's' : ''}</div>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                <span style={{ fontWeight: '700', fontSize: '15px', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{fmt(req.total)}</span>
+                <span style={{ fontWeight: '700', fontSize: '15px', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{fmt(req.totalAmount)}</span>
                 <StatusBadge status={req.status} size="sm" />
               </div>
             </Link>

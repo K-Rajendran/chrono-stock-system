@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-interface Product { id: string; name: string; sellingPrice: number; effectivePrice: number; stockQuantity: number; discountValue: number; discountType: string; }
+interface Product { id: string; name: string; sellingPrice: number; effectivePrice: number; stockQuantity: number; discountValue: number; discountType: string; primaryImageUrl?: string; }
 
 interface BillItemDraft {
   productId: string;
@@ -93,7 +93,8 @@ export default function AdminNewBillPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ customerName, customerPhone, paymentMethod, transactionReference: transactionRef, notes, items }),
+        body: JSON.stringify({ customerName, customerPhone, paymentMethod, transactionRef, notes,
+          items: items.map(item => ({ productId: Number(item.productId), quantity: item.quantity, discountValue: item.discountSnapshot, discountType: item.discountType === 'FIXED' ? 'FIXED_AMOUNT' : item.discountType })) }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -143,10 +144,10 @@ export default function AdminNewBillPage() {
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', zIndex: 50, maxHeight: '200px', overflowY: 'auto', marginTop: '4px', boxShadow: 'var(--shadow-lg)' }}>
                 {filteredProducts.map(p => (
                   <button key={p.id} onClick={() => addProduct(p)}
-                    style={{ display: 'flex', justifyContent: 'space-between', width: '100%', padding: '10px 14px', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left', fontSize: '13px', transition: 'background var(--transition)' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between', width: '100%', padding: '10px 14px', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left', fontSize: '13px', transition: 'background var(--transition)' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(61,143,212,0.08)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-                    <span>{p.name}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>{p.primaryImageUrl ? <img src={p.primaryImageUrl} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} /> : null}{p.name}</span>
                     <span style={{ color: 'var(--gold)', fontWeight: '600' }}>{fmt(p.effectivePrice)}</span>
                   </button>
                 ))}

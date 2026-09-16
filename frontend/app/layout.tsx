@@ -1,17 +1,18 @@
 import type { Metadata } from 'next';
+// @ts-ignore -- CSS side-effect imports are handled by Next.js at build time.
 import '../styles/globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'SOUL x TIME — Where Time Finds Its Soul',
-    template: '%s | SOUL x TIME',
+    default: 'AFINO — Where Time Finds Its Soul',
+    template: '%s | AFINO',
   },
   description: 'Premium luxury timepieces — where craftsmanship meets artistry. Discover our exclusive collection of fine watches.',
-  keywords: ['luxury watches', 'premium timepieces', 'fine watches', 'SOUL x TIME'],
+  keywords: ['luxury watches', 'premium timepieces', 'fine watches', 'AFINO'],
   openGraph: {
     type: 'website',
-    siteName: 'SOUL x TIME',
-    title: 'SOUL x TIME — Premium Luxury Watches',
+    siteName: 'AFINO',
+    title: 'AFINO — Premium Luxury Watches',
     description: 'Where time finds its soul. Discover our exclusive collection.',
   },
 };
