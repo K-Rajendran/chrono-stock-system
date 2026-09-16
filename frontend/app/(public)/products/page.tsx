@@ -132,8 +132,6 @@ export default function ProductsPage() {
 
   const SORTS = [
     { value: 'createdAt,desc', label: 'Newest' },
-    { value: 'effectivePrice,asc', label: 'Price: Low → High' },
-    { value: 'effectivePrice,desc', label: 'Price: High → Low' },
     { value: 'name,asc', label: 'Name A–Z' },
   ];
 

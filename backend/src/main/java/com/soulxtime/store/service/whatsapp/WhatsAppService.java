@@ -47,7 +47,7 @@ public class WhatsAppService {
     @Value("${app.whatsapp.mode:LINK}")
     private String whatsAppMode;
 
-    @Value("${app.whatsapp.owner-number:}")
+    @Value("${app.whatsapp.owner-number:9787307883}")
     private String ownerNumber;
 
     @Value("${app.whatsapp.api-url:}")

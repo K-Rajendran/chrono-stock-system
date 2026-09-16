@@ -653,7 +653,8 @@ export default function HomePage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, 250px)',
+              justifyContent: 'center',
               gap: '12px',
             }}
           >
@@ -688,7 +689,8 @@ export default function HomePage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+              gridTemplateColumns: 'repeat(4, 275px)',
+              justifyContent: 'center',
               gap: '16px',
               marginBottom: '32px',
             }}

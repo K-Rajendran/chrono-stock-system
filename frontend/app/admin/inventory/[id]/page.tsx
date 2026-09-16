@@ -102,7 +102,7 @@ export default function InventoryDetailPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/inventory/${id}/adjust`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ type: form.type, quantity: Math.abs(qty), reason: form.reason }),
+        body: JSON.stringify({ type: form.type, quantity: qty, reason: form.reason }),
       });
 
       if (!res.ok) {
@@ -192,6 +192,7 @@ export default function InventoryDetailPage() {
                   value={form.quantity}
                   onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))}
                   placeholder="e.g. 10 or -3"
+                  className="quantity-input"
                   style={{ width: '100%', padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', WebkitTextFillColor: 'var(--text-primary)' }}
                 />
               </div>
@@ -203,6 +204,7 @@ export default function InventoryDetailPage() {
                   value={form.reason}
                   onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
                   placeholder="e.g. Restocked from supplier"
+                  className="quantity-input"
                   style={{ width: '100%', padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', WebkitTextFillColor: 'var(--text-primary)' }}
                 />
               </div>

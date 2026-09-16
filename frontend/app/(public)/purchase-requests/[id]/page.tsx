@@ -10,7 +10,6 @@ interface PurchaseRequestItem {
   id: string;
   productId: string;
   productName: string;
-  productName: string;
   unitPrice: number;
   discountValue: number;
   discountType: 'PERCENTAGE' | 'FIXED';

@@ -74,11 +74,11 @@ public class InventoryService {
         int change = 0;
 
         switch (req.getType()) {
-            case PURCHASE, RETURN, ADJUSTMENT -> {
-                if (req.getQuantity() <= 0) throw new BusinessException("INVALID_QTY", "Quantity must be positive");
+            case PURCHASE, ADJUSTMENT -> {
+                if (req.getQuantity() == 0) throw new BusinessException("INVALID_QTY", "Quantity cannot be zero");
                 change = req.getQuantity();
             }
-            case CANCELLATION -> {
+            case RETURN, CANCELLATION -> {
                 if (req.getQuantity() <= 0) throw new BusinessException("INVALID_QTY", "Quantity must be positive");
                 change = req.getQuantity(); // restoring stock
             }

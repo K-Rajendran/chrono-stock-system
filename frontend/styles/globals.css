@@ -135,3 +135,9 @@ input, select, textarea { font-family: inherit; }
   body { background: white; color: black; }
   .print-only { display: block !important; }
 }
+
+.quantity-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.45;
+  font-weight: 400;
+}

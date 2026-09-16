@@ -9,7 +9,6 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 interface BillItem {
   id: string;
   productName: string;
-  productName: string;
   sellingPrice: number;
   purchasePriceSnapshot?: number;
   discountValue: number;
