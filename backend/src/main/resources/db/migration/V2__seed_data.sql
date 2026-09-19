@@ -19,17 +19,17 @@
 -- ─────────────────────────────────────────────────────────────
 INSERT INTO users (full_name, email, phone, password_hash, role, is_active)
 VALUES
-    ('Soul x Time Admin',
-     'admin@soulxtime.com',
-     '+91 90000 00001',
-     '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/lewdBPj/RnPmKOW2.',
+    ('Afino Admin',
+     'admin@afino.com',
+     '+91 9000000001',
+     '$2a$12$G7JxaWHO9TRL9cMUTUham.n9JDdAtr0sSdKzi3C8sF6odHTZhnDES',
      'ADMIN',
      TRUE),
 
-    ('Demo Customer',
-     'customer@demo.com',
-     '+91 90000 00002',
-     '$2a$12$eImiTXuWVxfM37uY4JANjQ6kFuiV56gvNWIIiD8YGMQ3KuU7lX0y.',
+    ('taani',
+     'taani@surinder.com',
+     '+91 9000000003',
+     '$2a$12$JtzRwJxd/nfosCKGxI1dL.Ys20IiODudFyosH2XSpHmvF5cg8.BCW',
      'CUSTOMER',
      TRUE);
 

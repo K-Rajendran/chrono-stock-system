@@ -7,6 +7,7 @@ const nextConfig = {
       { protocol: 'https', hostname: '*.cloudinary.com' },
       { protocol: 'http', hostname: 'localhost' },
     ],
+    formats: ['image/avif', 'image/webp'],
     // Disable strict image optimization errors for external URLs
     dangerouslyAllowSVG: true,
     unoptimized: false,

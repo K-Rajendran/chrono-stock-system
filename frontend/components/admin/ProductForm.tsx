@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import ImageUpload from './ImageUpload';
+import MultiImageUpload from './MultiImageUpload';
 
 interface ProductFormData {
   name: string;
@@ -253,13 +255,41 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
 
         {/* Media */}
         <Section title="Media">
-          {FIELD('Primary Image URL', 'primaryImageUrl',
-            <input style={INPUT_STYLE} value={form.primaryImageUrl} onChange={e => set('primaryImageUrl', e.target.value)} placeholder="https://…" />
+          {/* Primary Image */}
+          <ImageUpload
+            label="Primary Image (Featured)"
+            value={form.primaryImageUrl}
+            onChange={(url) => set('primaryImageUrl', url)}
+          />
+          
+          {/* Gallery Images - Only in Edit Mode */}
+          {mode === 'edit' && productId && (
+            <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--border)' }}>
+              <MultiImageUpload
+                productId={parseInt(productId)}
+                maxImages={5}
+              />
+            </div>
           )}
-          {form.primaryImageUrl && (
-            <div style={{ marginTop: '12px' }}>
-              <img src={form.primaryImageUrl} alt="Preview" style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          
+          {/* Info Message for New Products */}
+          {mode === 'new' && (
+            <div style={{ 
+              marginTop: '16px',
+              padding: '14px 18px', 
+              background: 'rgba(61,143,212,0.05)', 
+              border: '1px solid rgba(61,143,212,0.2)', 
+              borderRadius: 'var(--radius-md)', 
+              fontSize: '13px', 
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <span style={{ fontSize: '18px' }}>💡</span>
+              <div>
+                <strong style={{ color: 'var(--text-primary)' }}>Tip:</strong> Save the product first, then you can add up to 5 gallery images on the edit page.
+              </div>
             </div>
           )}
         </Section>

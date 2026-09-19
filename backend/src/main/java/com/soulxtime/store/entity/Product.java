@@ -113,6 +113,7 @@ public class Product {
     private String model3dUrl;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("sortOrder ASC")
     @Builder.Default
     private List<ProductImage> images = new ArrayList<>();
 
@@ -170,6 +171,41 @@ public class Product {
         } else {
             stockStatus = StockStatus.IN_STOCK;
         }
+    }
+
+    // === Helper Methods for Gallery Images ===
+
+    /**
+     * Add gallery image with auto-incremented sort order.
+     */
+    public void addGalleryImage(String imageUrl, String altText) {
+        int nextOrder = images.isEmpty() ? 0 : images.stream()
+                .mapToInt(ProductImage::getSortOrder)
+                .max()
+                .orElse(-1) + 1;
+
+        ProductImage image = ProductImage.builder()
+                .product(this)
+                .imageUrl(imageUrl)
+                .altText(altText)
+                .sortOrder(nextOrder)
+                .build();
+
+        images.add(image);
+    }
+
+    /**
+     * Remove gallery image by URL.
+     */
+    public void removeGalleryImage(String imageUrl) {
+        images.removeIf(img -> img.getImageUrl().equals(imageUrl));
+    }
+
+    /**
+     * Clear all gallery images.
+     */
+    public void clearGalleryImages() {
+        images.clear();
     }
 
     public enum StockStatus { IN_STOCK, LOW_STOCK, OUT_OF_STOCK }
