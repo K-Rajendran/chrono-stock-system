@@ -54,6 +54,7 @@ public class PurchaseRequestService {
         List<PurchaseRequestItem> items = new ArrayList<>();
         BigDecimal subtotal = BigDecimal.ZERO;
         BigDecimal totalDiscount = BigDecimal.ZERO;
+        BigDecimal finalTotal = BigDecimal.ZERO;
 
         for (CartItem cartItem : cart.getItems()) {
             Product product = cartItem.getProduct();
@@ -68,6 +69,8 @@ public class PurchaseRequestService {
             }
 
             BigDecimal effectivePrice = product.getEffectivePrice();
+            BigDecimal sellingPrice = product.getSellingPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity()))
+                    .setScale(2, RoundingMode.HALF_UP);
             BigDecimal discountAmt = product.getDiscountAmount().multiply(BigDecimal.valueOf(cartItem.getQuantity()))
                     .setScale(2, RoundingMode.HALF_UP);
             BigDecimal lineTotal = effectivePrice.multiply(BigDecimal.valueOf(cartItem.getQuantity()))
@@ -84,8 +87,9 @@ public class PurchaseRequestService {
                     .build();
 
             items.add(item);
-            subtotal = subtotal.add(lineTotal);
+            subtotal = subtotal.add(sellingPrice);
             totalDiscount = totalDiscount.add(discountAmt);
+            finalTotal = finalTotal.add(lineTotal);
         }
 
         String referenceId = generateReferenceId();
@@ -98,7 +102,7 @@ public class PurchaseRequestService {
                 .status(PurchaseRequest.PurchaseRequestStatus.REQUESTED)
                 .subtotal(subtotal)
                 .totalDiscount(totalDiscount)
-                .totalAmount(subtotal)
+                .totalAmount(finalTotal)
                 .items(new ArrayList<>())
                 .build();
 

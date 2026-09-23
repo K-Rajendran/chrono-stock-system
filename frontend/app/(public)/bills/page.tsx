@@ -32,7 +32,7 @@ export default function BillsPage() {
     const token = localStorage.getItem('sxt_token');
     if (!token) { router.push('/login'); return; }
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customer/bills`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customer/bills?page=0&size=20&sort=createdAt,desc`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => {
@@ -40,7 +40,9 @@ export default function BillsPage() {
         if (!r.ok) throw new Error('Failed');
         return r.json();
       })
-      .then(setBills)
+      .then((data) => {
+        setBills(data.content ?? []);
+      })
       .catch((e) => { if (e.message !== 'auth') setError('Unable to load bills.'); })
       .finally(() => setLoading(false));
   }, []);

@@ -86,7 +86,7 @@ app:
     api-token: ${WHATSAPP_API_TOKEN:}
 
   billing:
-    number-prefix: ${BILL_NUMBER_PREFIX:ST}
+    number-prefix: ${BILL_NUMBER_PREFIX:AF}
 
   admin:
     owner-name: ${ADMIN_OWNER_NAME:AFINO}

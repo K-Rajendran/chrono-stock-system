@@ -126,11 +126,11 @@ export default function AdminNewBillPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
               <label style={LBL}>Customer Name *</label>
-              <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Full name" style={INPUT} onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }} />
+              <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Full name" className="quantity-input" style={INPUT} onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }} />
             </div>
             <div>
               <label style={LBL}>Phone *</label>
-              <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="+91 98765 43210" style={INPUT} onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }} />
+              <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="+91 98765 43210" className="quantity-input" style={INPUT} onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }} />
             </div>
           </div>
         </Section>
@@ -139,7 +139,7 @@ export default function AdminNewBillPage() {
         <Section title="Items">
           <div style={{ position: 'relative', marginBottom: '16px' }}>
             <label style={LBL}>Add Product</label>
-            <input value={productSearch} onChange={e => setProductSearch(e.target.value)} placeholder="Type product name to search…" style={INPUT} onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }} />
+            <input value={productSearch} onChange={e => setProductSearch(e.target.value)} placeholder="Type product name to search…" className="quantity-input" style={INPUT} onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }} />
             {filteredProducts.length > 0 && (
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', zIndex: 50, maxHeight: '200px', overflowY: 'auto', marginTop: '4px', boxShadow: 'var(--shadow-lg)' }}>
                 {filteredProducts.map(p => (
@@ -212,12 +212,12 @@ export default function AdminNewBillPage() {
             </div>
             <div>
               <label style={LBL}>Transaction Reference</label>
-              <input value={transactionRef} onChange={e => setTransactionRef(e.target.value)} placeholder="Optional" style={INPUT} onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }} />
+              <input value={transactionRef} onChange={e => setTransactionRef(e.target.value)} placeholder="Optional" className="quantity-input" style={INPUT} onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }} />
             </div>
           </div>
           <div>
             <label style={LBL}>Notes</label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Optional notes…"
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Optional notes…" className="quantity-input"
               style={{ ...INPUT, resize: 'vertical' }} onFocus={e => { (e.target as HTMLTextAreaElement).style.borderColor = 'var(--border-active)'; }} onBlur={e => { (e.target as HTMLTextAreaElement).style.borderColor = 'var(--border)'; }} />
           </div>
         </Section>

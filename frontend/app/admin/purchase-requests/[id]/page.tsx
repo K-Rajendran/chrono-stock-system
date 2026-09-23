@@ -249,12 +249,12 @@ export default function AdminPurchaseRequestDetailPage() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Transaction Reference</label>
-                  <input value={billForm.transactionReference} onChange={e => setBillForm(f => ({ ...f, transactionReference: e.target.value }))} placeholder="Optional"
+                  <input value={billForm.transactionReference} onChange={e => setBillForm(f => ({ ...f, transactionReference: e.target.value }))} placeholder="Optional" className="quantity-input"
                     style={{ width: '100%', padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', WebkitTextFillColor: 'var(--text-primary)' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Notes</label>
-                  <textarea value={billForm.notes} onChange={e => setBillForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Optional"
+                  <textarea value={billForm.notes} onChange={e => setBillForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Optional" className="quantity-input"
                     style={{ width: '100%', padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', resize: 'vertical', WebkitTextFillColor: 'var(--text-primary)' }} />
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>

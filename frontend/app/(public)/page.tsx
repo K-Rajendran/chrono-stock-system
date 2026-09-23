@@ -741,6 +741,7 @@ export default function HomePage() {
       <section style={{ padding: '80px 24px', background: 'var(--bg-base)' }}>
         <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
           <div
+            className="new-arrival-grid"
             style={{
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
@@ -840,14 +841,6 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-
-        <style>{`
-          @media (max-width: 768px) {
-            section > div > div[style*="grid-template-columns: 1fr 1fr"] {
-              grid-template-columns: 1fr !important;
-            }
-          }
-        `}</style>
       </section>
 
       {/* ── TRUST SECTION ── */}

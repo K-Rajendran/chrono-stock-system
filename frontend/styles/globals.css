@@ -141,3 +141,9 @@ input, select, textarea { font-family: inherit; }
   opacity: 0.45;
   font-weight: 400;
 }
+
+@media (max-width: 768px) {
+  .new-arrival-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

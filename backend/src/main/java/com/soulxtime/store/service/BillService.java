@@ -39,7 +39,7 @@ public class BillService {
     private final BillNumberSequenceRepository sequenceRepository;
     private final InventoryService inventoryService;
 
-    @Value("${app.billing.number-prefix:ST}")
+    @Value("${app.billing.number-prefix:AF}")
     private String billPrefix;
 
     // ─────────────────────────────────────────────────────────
@@ -54,22 +54,52 @@ public class BillService {
      *   linePriceAfterDiscount = sellingPrice × (1 - discountPct/100)   [for PERCENTAGE]
      *   linePriceAfterDiscount = sellingPrice - discountFixed            [for FIXED_AMOUNT]
      *   lineTotal              = linePriceAfterDiscount × quantity
-     *   subtotal               = SUM(lineTotal)
-     *   totalDiscount          = SUM(sellingPrice × quantity) - subtotal
-     *   finalTotal             = subtotal
+     *   subtotal               = SUM(sellingPriceSnapshot × quantity)
+     *   totalDiscount          = SUM(lineDiscountAmount)
+     *   finalTotal             = SUM(totalPrice)
      */
     @Transactional
     public BillResponse createBill(BillCreateRequest req, Long adminId) {
         User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", adminId));
 
-        User customer = req.getUserId() != null
-                ? userRepository.findById(req.getUserId()).orElse(null)
-                : null;
+        // CUSTOMER / PURCHASE REQUEST RESOLUTION
+        PurchaseRequest purchaseRequest = null;
+        User customer = null;
 
-        PurchaseRequest purchaseRequest = req.getPurchaseRequestId() != null
-                ? purchaseRequestRepository.findById(req.getPurchaseRequestId()).orElse(null)
-                : null;
+        // ONLINE / PURCHASE-REQUEST BILL
+        if (req.getPurchaseRequestId() != null) {
+
+            purchaseRequest = purchaseRequestRepository
+                    .findById(req.getPurchaseRequestId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "PurchaseRequest",
+                            req.getPurchaseRequestId()
+                    ));
+
+            customer = purchaseRequest.getUser();
+
+            if (customer == null) {
+                throw new BusinessException(
+                        "CUSTOMER_NOT_FOUND",
+                        "Purchase request is not associated with a registered user"
+                );
+            }
+
+            log.debug(
+                    "Creating bill from purchase request: purchaseRequestId={}, customerId={}",
+                    purchaseRequest.getId(),
+                    customer.getId()
+            );
+
+            // OFFLINE BILL
+        } else {
+            log.debug(
+                    "Creating offline bill: customerName={}, customerPhone={}",
+                    req.getCustomerName(),
+                    req.getCustomerPhone()
+            );
+        }
 
         // Build items with server-side price calculation
         List<BillItem> billItems = new ArrayList<>();
@@ -127,15 +157,45 @@ public class BillService {
             }
         }
 
+        // Original subtotal: selling price × quantity, BEFORE discounts
         BigDecimal subtotal = billItems.stream()
-                .map(BillItem::getTotalPrice)
+                .map(item -> item.getSellingPriceSnapshot()
+                        .multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
 
+        // Total discount across all bill items
         BigDecimal totalDiscount = billItems.stream()
                 .map(BillItem::getLineDiscountAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
+
+        // Final amount payable AFTER discounts
+        BigDecimal finalTotal = billItems.stream()
+                .map(BillItem::getTotalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal expectedFinalTotal = subtotal
+                .subtract(totalDiscount)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        if (finalTotal.compareTo(expectedFinalTotal) != 0) {
+            log.error(
+                    "Bill calculation mismatch: subtotal={}, discount={}, " +
+                            "finalTotal={}, expectedFinalTotal={}",
+                    subtotal,
+                    totalDiscount,
+                    finalTotal,
+                    expectedFinalTotal
+            );
+
+            throw new BusinessException(
+                    "BILL_CALCULATION_ERROR",
+                    "Bill total calculation is inconsistent"
+            );
+        }
+
 
         String billNumber = generateBillNumber();
 
@@ -146,7 +206,7 @@ public class BillService {
                 .customerPhone(req.getCustomerPhone())
                 .subtotal(subtotal)
                 .totalDiscount(totalDiscount)
-                .finalTotal(subtotal)
+                .finalTotal(finalTotal)
                 .paymentMethod(req.getPaymentMethod() != null ? req.getPaymentMethod() : Bill.PaymentMethod.CASH)
                 .paymentStatus(req.getPaymentStatus() != null ? req.getPaymentStatus() : Bill.PaymentStatus.PENDING)
                 .transactionRef(req.getTransactionRef())
@@ -291,15 +351,20 @@ public class BillService {
 
             // Recalculate totals
             BigDecimal subtotal = newBillItems.stream()
-                    .map(BillItem::getTotalPrice)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
+                    .map(item -> item.getSellingPriceSnapshot()
+                            .multiply(BigDecimal.valueOf(item.getQuantity())))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .setScale(2, RoundingMode.HALF_UP);
             BigDecimal totalDiscount = newBillItems.stream()
                     .map(BillItem::getLineDiscountAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal finalTotal = newBillItems.stream()
+                    .map(BillItem::getTotalPrice)
                     .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
 
             bill.setSubtotal(subtotal);
             bill.setTotalDiscount(totalDiscount);
-            bill.setFinalTotal(subtotal);
+            bill.setFinalTotal(finalTotal);
         }
 
         // Update other fields
@@ -363,6 +428,7 @@ public class BillService {
         Bill bill = billRepository.findById(billId)
                 .orElseThrow(() -> new ResourceNotFoundException("Bill", billId));
 
+        log.debug("Requesting user id: {}", requestingUserId);
         // Security: customers can only see their own bills
         if (!isAdmin && (bill.getUser() == null || !bill.getUser().getId().equals(requestingUserId))) {
             throw new BusinessException("FORBIDDEN", "You do not have access to this bill");
@@ -467,10 +533,23 @@ public class BillService {
     private BigDecimal computeEffectivePrice(BigDecimal price, Product.DiscountType type, BigDecimal discValue) {
         if (discValue == null || discValue.compareTo(BigDecimal.ZERO) == 0) return price;
         if (Product.DiscountType.PERCENTAGE.equals(type)) {
+            if (discValue.compareTo(BigDecimal.ZERO) < 0 || discValue.compareTo(BigDecimal.valueOf(100)) > 0) {
+                throw new BusinessException(
+                        "INVALID_DISCOUNT",
+                        "Percentage discount must be between 0 and 100"
+                );
+            }
             return price.multiply(BigDecimal.ONE.subtract(
                     discValue.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP)
             )).setScale(2, RoundingMode.HALF_UP);
         } else {
+            if (discValue.compareTo(BigDecimal.ZERO) < 0 ||
+                    discValue.compareTo(price) > 0) {
+                throw new BusinessException(
+                        "INVALID_DISCOUNT",
+                        "Fixed discount cannot exceed the selling price"
+                );
+            }
             return price.subtract(discValue).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
         }
     }
