@@ -771,7 +771,7 @@ export default function HomePage() {
             </div>
 
             {/* Right: text */}
-            <div style={{ padding: '48px 48px 48px 0' }}>
+            <div className="new-arrival-content" style={{ padding: '48px 48px 48px 0' }}>
               <span
                 style={{
                   display: 'inline-block',

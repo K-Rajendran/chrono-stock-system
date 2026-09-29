@@ -215,7 +215,7 @@ export default function AdminSidebar({ mobileOpen, onClose }: AdminSidebarProps)
         .admin-sidebar {
           transition: transform var(--transition-slow);
         }
-        @media (max-width: 768px) {
+        @media (max-width: 1023px) {
           .admin-sidebar {
             position: fixed !important;
             top: 0; left: 0; bottom: 0;

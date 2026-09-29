@@ -31,7 +31,7 @@ export default function Footer() {
         }}
       >
         {/* Brand */}
-        <div className="footer-explore">
+        <div className="footer-brand">
           <div style={{ marginBottom: '16px' }}>
             <img
               src="/afino-logo.svg"
@@ -73,7 +73,7 @@ export default function Footer() {
         </div>
 
         {/* Navigation */}
-        <div className="footer-account">
+        <div className="footer-explore">
           <h4
             style={{
               fontFamily: 'var(--font-body)',
@@ -111,7 +111,7 @@ export default function Footer() {
         </div>
 
         {/* Account */}
-        <div>
+        <div className="footer-account">
           <h4
             style={{
               fontFamily: 'var(--font-body)',
@@ -206,7 +206,13 @@ export default function Footer() {
           ))}
         </div>
       </div>
-      <style>{`@media (max-width: 640px) { .footer-explore { grid-column: 1; } .footer-account { grid-column: 2; } }`}</style>
+      <style>{`
+        @media (max-width: 767px) {
+          .footer-brand { grid-column: 1 / -1; }
+          .footer-explore { grid-column: 1; }
+          .footer-account { grid-column: 2; }
+        }
+      `}</style>
     </footer>
   );
 }

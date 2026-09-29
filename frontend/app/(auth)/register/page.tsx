@@ -6,11 +6,11 @@ import Link from 'next/link';
 
 const INPUT = {
   width: '100%', padding: '12px 16px',
-  background: 'rgba(8, 20, 40, 0.8)',
+  background: 'rgb(252, 252, 252)',
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-md)',
   color: '#F5F5F0', fontSize: '14px', outline: 'none',
-  WebkitTextFillColor: '#F5F5F0', caretColor: '#c9a84c',
+  WebkitTextFillColor: '#151139', caretColor: '#c9a84c',
   transition: 'border-color var(--transition)',
 } as React.CSSProperties;
 

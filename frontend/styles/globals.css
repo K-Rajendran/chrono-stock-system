@@ -147,3 +147,135 @@ input, select, textarea { font-family: inherit; }
     grid-template-columns: 1fr !important;
   }
 }
+
+@media (max-width: 767px) {
+  .new-arrival-grid {
+    border-radius: 20px;
+  }
+
+  .new-arrival-grid > div:first-child {
+    min-height: 240px !important;
+    padding: 24px !important;
+  }
+
+  .new-arrival-content {
+    padding: 32px 24px 40px !important;
+    text-align: center;
+  }
+
+  .new-arrival-content p {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* Responsive layout system: desktop styles remain the source of truth from 1024px. */
+@media (max-width: 1023px) {
+  :root { --navbar-height: 76px; }
+
+  /* Inline grid layouts used by public and admin pages collapse predictably. */
+  div[style*="grid-template-columns: 1fr 1fr"],
+  div[style*="grid-template-columns: 3fr 2fr"],
+  div[style*="grid-template-columns: 1fr 1.4fr"],
+  div[style*="grid-template-columns: 1fr 300px"],
+  div[style*="grid-template-columns: 1fr 340px"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  div[style*="grid-template-columns: repeat(4, 275px)"],
+  div[style*="grid-template-columns: repeat(auto-fit, 250px)"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  /* Tabular admin/customer data keeps every column available without squeezing it. */
+  div[style*="overflowX: 'auto'"],
+  div[style*="overflow-x: auto"] {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 767px) {
+  html { font-size: 16px; }
+
+  body { min-width: 320px; }
+
+  /* A consistent tap target for controls without changing desktop dimensions. */
+  button:not([role="switch"]),
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    min-height: 44px;
+  }
+
+  input, select, textarea { font-size: 16px !important; }
+
+  /* Page containers with inline desktop gutters. */
+  div[style*="padding: '120px 24px 80px'"],
+  div[style*="padding: '120px 24px 60px'"],
+  div[style*="padding: '100px 24px 80px'"] {
+    padding: 96px 16px 48px !important;
+  }
+
+  section[style*="padding: '100px 24px'"],
+  section[style*="padding: '80px 24px'"] {
+    padding: 52px 16px !important;
+  }
+
+  /* Dense card grids become readable single-column flows. */
+  div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  div[style*="grid-template-columns: auto 1fr auto"] {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+  }
+
+  div[style*="grid-template-columns: 1fr 1fr auto"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Preserve all table content with a comfortable horizontal scroll region. */
+  table { min-width: 620px; }
+  th, td { white-space: nowrap; }
+
+  /* Keep action rows usable rather than compressed. */
+  div[style*="display: 'flex'"][style*="justifyContent: 'space-between'"] {
+    gap: 12px;
+  }
+
+  /* Product, cart, bill and request action groups wrap at a practical width. */
+  div[style*="display: 'flex'"][style*="flexWrap: 'wrap'"] > button,
+  div[style*="display: 'flex'"][style*="flexWrap: 'wrap'"] > a {
+    min-height: 44px;
+  }
+
+  /* Toasts remain visible above the mobile viewport edge. */
+  div[style*="position: 'fixed'"][style*="bottom: '24px'"] {
+    left: 16px !important;
+    right: 16px !important;
+    bottom: 16px !important;
+    max-width: none !important;
+  }
+
+  /* Do not allow decorative background circles to produce horizontal overflow. */
+  div[style*="width: '600px'"][style*="height: '600px'"],
+  div[style*="width: '500px'"][style*="height: '500px'"] {
+    width: 360px !important;
+    height: 360px !important;
+  }
+
+  footer > div[style*="grid-template-columns"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 28px !important;
+    padding: 40px 16px 32px !important;
+  }
+
+  footer > div[style*="padding: '20px 24px'"] {
+    padding: 18px 16px !important;
+    align-items: flex-start !important;
+  }
+
+  .footer-brand { grid-column: 1 / -1; }
+  .footer-explore { grid-column: 1; }
+  .footer-account { grid-column: 2; }
+}

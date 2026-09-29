@@ -41,9 +41,9 @@ const variants: Record<string, React.CSSProperties> = {
 };
 
 const sizes: Record<string, React.CSSProperties> = {
-  sm: { padding: '6px 14px', fontSize: '12px', borderRadius: 'var(--radius-sm)' },
-  md: { padding: '10px 20px', fontSize: '14px', borderRadius: 'var(--radius-md)' },
-  lg: { padding: '14px 28px', fontSize: '15px', borderRadius: 'var(--radius-md)' },
+  sm: { minHeight: '36px', padding: '6px 14px', fontSize: '12px', borderRadius: 'var(--radius-sm)' },
+  md: { minHeight: '44px', padding: '10px 20px', fontSize: '14px', borderRadius: 'var(--radius-md)' },
+  lg: { minHeight: '48px', padding: '14px 28px', fontSize: '15px', borderRadius: 'var(--radius-md)' },
 };
 
 export default function Button({

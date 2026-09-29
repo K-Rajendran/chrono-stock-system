@@ -156,6 +156,7 @@ export default function Navbar() {
           BRAND
           ========================================================= */}
       <div
+        className="navbar-brand"
         style={{
           position: 'absolute',
           top: '14px',
@@ -324,6 +325,7 @@ export default function Navbar() {
           RIGHT SIDE ICONS
           ========================================================= */}
       <div
+        className="navbar-actions"
         style={{
           position: 'absolute',
           right: '38px',
@@ -816,15 +818,11 @@ export default function Navbar() {
           },
           {
             href: '/products',
-            label: 'Shop',
+            label: 'Collections',
           },
           {
             href: '/products?new=1',
             label: 'New Arrivals',
-          },
-          {
-            href: '/collections',
-            label: 'Collections',
           },
           {
             href: '/about',
@@ -955,7 +953,7 @@ export default function Navbar() {
         RESPONSIVE CSS
         ========================================================= */}
     <style>{`
-      @media (max-width: 768px) {
+      @media (max-width: 1023px) {
         .desktop-nav {
           display: none !important;
         }
@@ -963,11 +961,20 @@ export default function Navbar() {
         .mobile-menu-btn {
           display: flex !important;
         }
+
+        .navbar-brand {
+          top: 22px !important;
+        }
+
+        .navbar-actions {
+          right: 12px !important;
+          top: 16px !important;
+        }
       }
 
-      @media (max-width: 480px) {
+      @media (max-width: 1023px) {
         nav {
-          height: 75px !important;
+          height: 76px !important;
         }
       }
     `}</style>

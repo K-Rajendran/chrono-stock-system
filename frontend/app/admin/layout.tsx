@@ -55,7 +55,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           <button
             onClick={() => setMobileOpen(true)}
-            style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+            style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
           >
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
@@ -64,7 +64,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: '600', letterSpacing: '0.1em', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
             AFINO Admin
           </span>
-          <div style={{ width: 36 }} />
+          <div style={{ width: 44 }} />
         </div>
 
         <main style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
@@ -73,7 +73,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
 
       <style>{`
-        @media (max-width: 768px) {
+        @media (max-width: 1023px) {
           .admin-mobile-topbar { display: flex !important; }
           main { padding: 20px 16px !important; }
         }
