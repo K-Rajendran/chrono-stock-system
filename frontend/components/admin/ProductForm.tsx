@@ -337,7 +337,7 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
             onClick={handleSubmit}
             disabled={loading}
             style={{
-              padding: '12px 28px', background: 'var(--gold-gradient)', color: '#000',
+              padding: '12px 28px', background: 'var(--gold-gradient)', color: '#fff',
               fontWeight: '700', fontSize: '14px', borderRadius: 'var(--radius-md)',
               border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '8px',

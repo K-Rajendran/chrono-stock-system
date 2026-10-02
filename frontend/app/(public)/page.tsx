@@ -277,7 +277,7 @@ export default function HomePage() {
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              opacity: 0.25,
+              opacity: 0.65,
               filter: 'saturate(0.6) hue-rotate(200deg)',
             }}
           >
@@ -289,7 +289,7 @@ export default function HomePage() {
             style={{
               position: 'absolute',
               inset: 0,
-              background: 'radial-gradient(ellipse 80% 80% at 60% 50%, rgba(224, 228, 235, 0) 0%, var(--bg-base) 100%)',
+              background: 'radial-gradient(ellipse 80% 80% at 60% 50%, rgba(169, 176, 190, 0) 0%, var(--bg-base) 100%)',
             }}
           />
         )}
@@ -300,13 +300,13 @@ export default function HomePage() {
             position: 'absolute',
             inset: 0,
             background:
-              'linear-gradient(90deg, rgba(4,8,15,0.95) 0%, rgba(105, 117, 137, 0) 50%, rgba(241, 241, 242, 0.16) 100%)',
+              'linear-gradient(90deg, rgba(28, 38, 55, 0.95) 0%, rgba(243, 245, 249, 0.37) 0%, rgba(114, 65, 1, 0.9) 180%)',
             pointerEvents: 'none',
           }}
         />
 
         {/* Ambient rings */}
-        <div
+        {/* <div
           style={{
             position: 'absolute',
             right: '15%',
@@ -320,7 +320,7 @@ export default function HomePage() {
           <AmbientRing size={500} color="var(--blue-accent)" delay="0s" opacity={0.06} />
           <AmbientRing size={350} color="var(--gold)" delay="1.5s" opacity={0.08} />
           <AmbientRing size={200} color="var(--blue-bright)" delay="0.75s" opacity={0.1} />
-        </div>
+        </div> */}
 
         {/* Decorative watch illustration */}
         {/* <div
@@ -377,7 +377,7 @@ export default function HomePage() {
                 alignItems: 'center',
                 gap: '10px',
                 padding: '6px 16px',
-                background: 'rgba(61,143,212,0.1)',
+                background: 'rgba(172, 179, 185, 0.06)',
                 border: '1px solid rgba(61,143,212,0.25)',
                 borderRadius: '20px',
                 marginBottom: '28px',
@@ -439,7 +439,7 @@ export default function HomePage() {
               className="hero-sub"
               style={{
                 fontSize: '16px',
-                color: 'var(--text-secondary)',
+                color: 'rgba(0, 0, 0, 0.78)',
                 lineHeight: '1.7',
                 maxWidth: '460px',
                 marginBottom: '44px',
@@ -651,6 +651,7 @@ export default function HomePage() {
           </div>
 
           <div
+            className="category-grid"
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, 250px)',
@@ -760,14 +761,57 @@ export default function HomePage() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '48px',
-                background: 'radial-gradient(ellipse at center, rgba(61,143,212,0.08) 0%, transparent 70%)',
+                padding: '40px',
+                background:
+                  'radial-gradient(ellipse at center, rgba(61,143,212,0.08) 0%, transparent 70%)',
                 position: 'relative',
                 minHeight: '300px',
               }}
             >
-               <AmbientRing size={220} color="var(--gold)" delay="0s" opacity={0.12} />
-               {newArrival?.primaryImageUrl && <img src={newArrival.primaryImageUrl} alt={newArrival.name} style={{ width: '100%', height: '100%', maxHeight: 320, objectFit: 'contain', zIndex: 1, padding: '20px' }} />}
+              <div
+                style={{
+                  width: '100%',
+                  maxWidth: '360px',
+                  height: '300px',
+                  position: 'relative',
+                  overflow: 'hidden',
+
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--gold-gradient)',
+                  background: 'rgba(8, 20, 40, 0.25)',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'all var(--transition)',
+                }}
+                onMouseEnter={(e) => {
+                  const el = e.currentTarget as HTMLElement;
+
+                  el.style.transform = 'translateY(-5px)';
+                  el.style.borderColor = 'var(--border-active)';
+                  el.style.boxShadow =
+                    '0 12px 40px rgba(0,0,0,0.35)';
+                }}
+                onMouseLeave={(e) => {
+                  const el = e.currentTarget as HTMLElement;
+
+                  el.style.transform = 'translateY(0)';
+                  el.style.borderColor = 'var(--border)';
+                  el.style.boxShadow = 'var(--shadow-sm)';
+                }}
+              >
+                {newArrival?.primaryImageUrl && (
+                  <img
+                    src={newArrival.primaryImageUrl}
+                    alt={newArrival.name}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block',
+                      transition: 'transform var(--transition)',
+                    }}
+                  />
+                )}
+              </div>
             </div>
 
             {/* Right: text */}
@@ -857,7 +901,7 @@ export default function HomePage() {
             {[
               { icon: '🏅', title: 'Authentic Pieces', desc: 'Every watch verified and certified' },
               { icon: '📦', title: 'Secure Packaging', desc: 'Premium presentation on delivery' },
-              { icon: '🔧', title: '1 Year Warranty', desc: 'Service & repair coverage' },
+              // { icon: '🔧', title: '1 Year Warranty', desc: 'Service & repair coverage' },
               { icon: '💬', title: 'WhatsApp Support', desc: 'Direct line to our experts' },
             ].map(({ icon, title, desc }) => (
               <div key={title} style={{ padding: '32px 20px' }}>

@@ -106,6 +106,7 @@ export default function LoginPage() {
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 placeholder="you@example.com"
+                className="quantity-input"
                 autoComplete="email"
                 required
                 style={INPUT}
@@ -122,6 +123,7 @@ export default function LoginPage() {
                   value={form.password}
                   onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                   placeholder="••••••••"
+                  className="quantity-input"
                   autoComplete="current-password"
                   required
                   style={{ ...INPUT, paddingRight: '46px' }}

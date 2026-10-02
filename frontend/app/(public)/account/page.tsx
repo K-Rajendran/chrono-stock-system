@@ -13,7 +13,7 @@ interface Bill { id: string; billNumber: string; billStatus: string; paymentStat
 const fmt = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
-type Tab = 'profile' | 'requests' | 'bills';
+type Tab = 'profile' | 'requests'; // | 'bills';
 
 export default function AccountPage() {
   const router = useRouter();
@@ -29,6 +29,28 @@ export default function AccountPage() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
+  // useEffect(() => {
+  //   const token = localStorage.getItem('sxt_token');
+  //   if (!token) { router.push('/login'); return; }
+
+  //   const headers = { Authorization: `Bearer ${token}` };
+  //   const base = process.env.NEXT_PUBLIC_API_URL;
+
+  //   Promise.all([
+  //     fetch(`${base}/api/customer/profile`, { headers }).then(r => { if (r.status === 401) throw new Error('auth'); return r.json(); }),
+  //     fetch(`${base}/api/purchase-requests?page=0&size=20`, { headers }).then(r => r.json()).catch(() => []),
+  //     fetch(`${base}/api/customer/bills?page=0&size=20&sort=createdAt,desc`, { headers }).then(r => r.json()).catch(() => []),
+  //   ])
+  //     .then(([p, reqs, bs]) => {
+  //       setProfile(p);
+  //       setEditForm({ name: p.fullName, phone: p.phone });
+  //       setRequests(reqs.content ?? reqs ?? []);
+  //       setBills(bs.content ?? bs ?? []);
+  //     })
+  //     .catch(e => { if (e.message === 'auth') router.push('/login'); })
+  //     .finally(() => setLoading(false));
+  // }, []);
+
   useEffect(() => {
     const token = localStorage.getItem('sxt_token');
     if (!token) { router.push('/login'); return; }
@@ -39,13 +61,11 @@ export default function AccountPage() {
     Promise.all([
       fetch(`${base}/api/customer/profile`, { headers }).then(r => { if (r.status === 401) throw new Error('auth'); return r.json(); }),
       fetch(`${base}/api/purchase-requests?page=0&size=20`, { headers }).then(r => r.json()).catch(() => []),
-      fetch(`${base}/api/customer/bills?page=0&size=20&sort=createdAt,desc`, { headers }).then(r => r.json()).catch(() => []),
     ])
-      .then(([p, reqs, bs]) => {
+      .then(([p, reqs]) => {
         setProfile(p);
         setEditForm({ name: p.fullName, phone: p.phone });
         setRequests(reqs.content ?? reqs ?? []);
-        setBills(bs.content ?? bs ?? []);
       })
       .catch(e => { if (e.message === 'auth') router.push('/login'); })
       .finally(() => setLoading(false));
@@ -74,7 +94,7 @@ export default function AccountPage() {
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: 'profile', label: 'Profile' },
     { key: 'requests', label: 'Requests', count: requests.length },
-    { key: 'bills', label: 'Bills', count: bills.length },
+    // { key: 'bills', label: 'Bills', count: bills.length },
   ];
 
   if (loading) return <LoadingSpinner message="Loading account…" />;
@@ -188,7 +208,7 @@ export default function AccountPage() {
       )}
 
       {/* Bills tab */}
-      {tab === 'bills' && (
+      {/* {tab === 'bills' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {bills.length === 0 ? (
             <div style={{ padding: '80px 40px', textAlign: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)' }}>
@@ -218,7 +238,7 @@ export default function AccountPage() {
             </Link>
           ))}
         </div>
-      )}
+      )} */}
     </div>
   );
 }

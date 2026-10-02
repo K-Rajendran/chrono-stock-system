@@ -153,8 +153,8 @@ export default function AdminSidebar({ mobileOpen, onClose }: AdminSidebarProps)
                   gap: '12px',
                   padding: '10px 12px',
                   borderRadius: 'var(--radius-md)',
-                  background: active ? 'rgba(61,143,212,0.12)' : 'transparent',
-                  border: `1px solid ${active ? 'rgba(61,143,212,0.3)' : 'transparent'}`,
+                  background: active ? 'rgba(93,64,55,0.10)' : 'transparent',
+                  border: `1px solid ${active ? 'rgba(93,64,55,0.28)' : 'transparent'}`,
                   color: active ? 'var(--blue-bright)' : 'var(--text-secondary)',
                   fontSize: '14px',
                   fontWeight: active ? '600' : '400',
@@ -164,7 +164,7 @@ export default function AdminSidebar({ mobileOpen, onClose }: AdminSidebarProps)
                 onMouseEnter={(e) => {
                   if (!active) {
                     const el = e.currentTarget as HTMLElement;
-                    el.style.background = 'rgba(61,143,212,0.06)';
+                    el.style.background = 'rgba(93,64,55,0.06)';
                     el.style.color = 'var(--text-primary)';
                   }
                 }}

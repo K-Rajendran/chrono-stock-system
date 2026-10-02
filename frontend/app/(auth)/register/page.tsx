@@ -109,7 +109,7 @@ export default function RegisterPage() {
           {error && <div style={{ padding: '12px 16px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius-md)', color: '#f87171', fontSize: '14px', marginBottom: '20px' }}>{error}</div>}
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <Field label="Full Name" name="name" placeholder="Your full name" />
+            <Field label="Full Name" name="name" placeholder="Your full name"  />
             <Field label="Email" name="email" type="email" placeholder="you@example.com" />
             <Field label="Phone" name="phone" placeholder="+91 98765 43210" />
 
@@ -121,6 +121,7 @@ export default function RegisterPage() {
                   value={form.password}
                   onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                   placeholder="Min. 8 characters"
+                  className="quantity-input"
                   style={{ ...INPUT, paddingRight: '46px', borderColor: fieldErrors.password ? '#f87171' : 'var(--border)' }}
                   onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }}
                   onBlur={e => { (e.target as HTMLInputElement).style.borderColor = fieldErrors.password ? '#f87171' : 'var(--border)'; }}

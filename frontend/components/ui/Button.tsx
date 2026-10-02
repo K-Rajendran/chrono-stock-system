@@ -12,9 +12,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants: Record<string, React.CSSProperties> = {
   primary: {
-    background: 'rgba(61,143,212,0.15)',
-    border: '1px solid rgba(61,143,212,0.4)',
-    color: 'var(--blue-bright)',
+    background: 'var(--gold-gradient)',
+    border: '1px solid var(--gold)',
+    color: '#fff',
   },
   secondary: {
     background: 'transparent',
@@ -34,7 +34,7 @@ const variants: Record<string, React.CSSProperties> = {
   gold: {
     background: 'var(--gold-gradient)',
     border: 'none',
-    color: '#000',
+    color: '#fff',
     fontWeight: '700',
     boxShadow: 'var(--shadow-gold)',
   },

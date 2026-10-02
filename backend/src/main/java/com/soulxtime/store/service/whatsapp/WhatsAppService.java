@@ -41,6 +41,17 @@ import java.time.format.DateTimeFormatter;
 @Slf4j
 public class WhatsAppService {
 
+    // Global Environment-Proof Emoji Constants
+    public static final String EMOJI_CLOCK = new String(Character.toChars(0x1F550));      // 🕒
+    public static final String EMOJI_CLIPBOARD = new String(Character.toChars(0x1F4CB));  // 📋
+    public static final String EMOJI_SILHOUETTE = new String(Character.toChars(0x1F464)); // 👤
+    public static final String EMOJI_CALENDAR = new String(Character.toChars(0x1F5D3));   // 🗓️
+    public static final String EMOJI_MONEYBAG = new String(Character.toChars(0x1F4B0));   // 💰
+    public static final String EMOJI_DIAMOND = new String(Character.toChars(0x1F48E));    // 💎
+    public static final String EMOJI_CARD = new String(Character.toChars(0x1F4B3));       // 💳
+    public static final String EMOJI_REFRESH = new String(Character.toChars(0x1F501));    // 🔄
+    public static final String EMOJI_PHONE = new String(Character.toChars(0x1F4DE));      // 📞
+
     private final BillRepository billRepository;
     private final PurchaseRequestRepository purchaseRequestRepository;
 
@@ -134,12 +145,12 @@ public class WhatsAppService {
 
     private String buildPurchaseRequestMessage(PurchaseRequest pr) {
         StringBuilder sb = new StringBuilder();
-        sb.append("🕐 *AFINO — New Purchase Request*\n\n");
+        sb.append(EMOJI_CLOCK).append(" *AFINO — New Purchase Request*\n\n");
         sb.append("━━━━━━━━━━━━━━━━━━━━━━━━\n");
-        sb.append("📋 *Reference:* ").append(pr.getReferenceId()).append("\n");
-        sb.append("👤 *Customer:* ").append(pr.getCustomerName()).append("\n");
-        sb.append("📞 *Phone:* ").append(pr.getCustomerPhone()).append("\n");
-        sb.append("🗓 *Date:* ").append(BILL_DATE_FORMAT.format(pr.getCreatedAt())).append(" UTC\n");
+        sb.append(EMOJI_CLIPBOARD).append(" *Reference:* ").append(pr.getReferenceId()).append("\n");
+        sb.append(EMOJI_SILHOUETTE).append(" *Customer:* ").append(pr.getCustomerName()).append("\n");
+        sb.append(EMOJI_PHONE).append(" *Phone:* ").append(pr.getCustomerPhone()).append("\n");
+        sb.append(EMOJI_CALENDAR).append(" *Date:* ").append(BILL_DATE_FORMAT.format(pr.getCreatedAt())).append(" UTC\n");
         sb.append("━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
         sb.append("*Items:*\n");
 
@@ -151,20 +162,20 @@ public class WhatsAppService {
 
         sb.append("\n━━━━━━━━━━━━━━━━━━━━━━━━\n");
         if (pr.getTotalDiscount() != null && pr.getTotalDiscount().compareTo(java.math.BigDecimal.ZERO) > 0) {
-            sb.append("💰 *Discount:* -₹").append(pr.getTotalDiscount()).append("\n");
+            sb.append(EMOJI_MONEYBAG).append(" *Discount:* -₹").append(pr.getTotalDiscount()).append("\n");
         }
-        sb.append("💎 *Total:* ₹").append(pr.getTotalAmount()).append("\n\n");
+        sb.append(EMOJI_DIAMOND).append(" *Total:* ₹").append(pr.getTotalAmount()).append("\n\n");
         sb.append("_Where Time Finds Its Soul_");
         return sb.toString();
     }
 
     private String buildBillMessage(Bill bill) {
         StringBuilder sb = new StringBuilder();
-        sb.append("🕐 *AFINO — Your Invoice*\n\n");
+        sb.append(EMOJI_CLOCK).append(" *AFINO — Your Invoice*\n");
         sb.append("━━━━━━━━━━━━━━━━━━━━━━━━\n");
-        sb.append("🧾 *Bill No:* ").append(bill.getBillNumber()).append("\n");
-        sb.append("👤 *Name:* ").append(bill.getCustomerName()).append("\n");
-        sb.append("🗓 *Date:* ").append(BILL_DATE_FORMAT.format(bill.getCreatedAt())).append(" UTC\n");
+        sb.append(EMOJI_CLIPBOARD).append(" *Bill No:* ").append(bill.getBillNumber()).append("\n");
+        sb.append(EMOJI_SILHOUETTE).append(" *Name:* ").append(bill.getCustomerName()).append("\n");
+        sb.append(EMOJI_CALENDAR).append(" *Date:* ").append(BILL_DATE_FORMAT.format(bill.getCreatedAt())).append(" UTC\n");
         sb.append("━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
         sb.append("*Items:*\n");
 
@@ -176,11 +187,11 @@ public class WhatsAppService {
 
         sb.append("\n━━━━━━━━━━━━━━━━━━━━━━━━\n");
         if (bill.getTotalDiscount() != null && bill.getTotalDiscount().compareTo(java.math.BigDecimal.ZERO) > 0) {
-            sb.append("💰 *Discount:* -₹").append(bill.getTotalDiscount()).append("\n");
+            sb.append(EMOJI_MONEYBAG).append(" *Discount:* -₹").append(bill.getTotalDiscount()).append("\n");
         }
-        sb.append("💎 *Total:* ₹").append(bill.getFinalTotal()).append("\n");
-        sb.append("💳 *Payment:* ").append(bill.getPaymentMethod().name()).append("\n");
-        sb.append("✅ *Status:* ").append(bill.getPaymentStatus().name()).append("\n\n");
+        sb.append(EMOJI_DIAMOND).append(" *Total:* ₹").append(bill.getFinalTotal()).append("\n");
+        sb.append(EMOJI_CARD).append(" *Payment:* ").append(bill.getPaymentMethod().name()).append("\n");
+        sb.append(EMOJI_REFRESH).append(" *Status:* ").append(bill.getPaymentStatus().name()).append("\n\n");
         sb.append("Thank you for choosing AFINO.\n");
         sb.append("_Where Time Finds Its Soul_");
         return sb.toString();
@@ -192,9 +203,9 @@ public class WhatsAppService {
 
     private String buildWhatsAppLink(String phone, String message) {
         if (phone == null || phone.isBlank()) {
-            return "https://wa.me/?text=" + urlEncode(message);
+            return "https://whatsapp.com" + urlEncode(message);
         }
-        return "https://wa.me/" + sanitizePhone(phone) + "?text=" + urlEncode(message);
+        return "https://api.whatsapp.com/send?phone=" + sanitizePhone(phone) + "&text=" + urlEncode(message);
     }
 
     private String sanitizePhone(String phone) {
@@ -203,7 +214,10 @@ public class WhatsAppService {
     }
 
     private String urlEncode(String text) {
-        return URLEncoder.encode(text, StandardCharsets.UTF_8);
+        if (text == null) return "";
+        // URLEncoder encodes spaces as '+' which breaks emoji parsing in WhatsApp links.
+        // Replacing '+' with '%20' forces standard URL percent-encoding.
+        return URLEncoder.encode(text, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     // ─────────────────────────────────────────────────────────

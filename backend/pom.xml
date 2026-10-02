@@ -13,10 +13,10 @@
     </parent>
 
     <groupId>com.soulxtime</groupId>
-    <artifactId>soul-x-time-backend</artifactId>
+    <artifactId>afino-backend</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
-    <name>Soul x Time Backend</name>
+    <name>Afino Backend</name>
     <description>Premium Watch Commerce Platform — Spring Boot API</description>
 
     <properties>
@@ -160,7 +160,7 @@
     </dependencies>
 
     <build>
-        <finalName>soul-x-time-backend</finalName>
+        <finalName>afino-backend</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

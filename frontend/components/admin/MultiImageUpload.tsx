@@ -209,7 +209,7 @@ export default function MultiImageUpload({
           <label
             style={{
               padding: '8px 16px',
-              background: 'rgba(61,143,212,0.1)',
+              background: 'rgba(93,64,55,0.10)',
               border: '1px solid var(--border-active)',
               borderRadius: 'var(--radius-md)',
               color: 'var(--blue-bright)',
@@ -227,7 +227,7 @@ export default function MultiImageUpload({
                   style={{
                     width: '14px',
                     height: '14px',
-                    border: '2px solid rgba(61,143,212,0.3)',
+                    border: '2px solid rgba(93,64,55,0.30)',
                     borderTopColor: 'var(--blue-bright)',
                     borderRadius: '50%',
                     animation: 'spin 0.8s linear infinite',

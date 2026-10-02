@@ -50,20 +50,20 @@ function MetricCard({
   title: string; value: string; sub?: string; icon: string; accent?: 'blue' | 'gold' | 'green' | 'red'; change?: string;
 }) {
   const colors: Record<string, string> = {
-    blue: 'rgba(61,143,212,0.12)',
-    gold: 'rgba(201,168,76,0.12)',
-    green: 'rgba(16,185,129,0.12)',
-    red: 'rgba(239,68,68,0.12)',
+    blue: 'rgba(93,64,55,0.10)',
+    gold: 'rgba(78,52,46,0.12)',
+    green: 'rgba(109,76,65,0.10)',
+    red: 'rgba(93,64,55,0.12)',
   };
   const borders: Record<string, string> = {
-    blue: 'rgba(61,143,212,0.25)',
-    gold: 'rgba(201,168,76,0.25)',
-    green: 'rgba(16,185,129,0.25)',
-    red: 'rgba(239,68,68,0.25)',
+    blue: 'rgba(93,64,55,0.24)',
+    gold: 'rgba(78,52,46,0.28)',
+    green: 'rgba(109,76,65,0.24)',
+    red: 'rgba(93,64,55,0.28)',
   };
 
   return (
-    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div className="dashboard-metric-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: '12px', fontWeight: '600', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{title}</span>
         <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-sm)', background: colors[accent], border: `1px solid ${borders[accent]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>
@@ -71,7 +71,7 @@ function MetricCard({
         </div>
       </div>
       <div>
-        <div style={{ fontFamily: 'var(--font-heading)', fontSize: '26px', fontWeight: '700', color: 'var(--text-primary)', lineHeight: 1 }}>{value}</div>
+        <div style={{ fontFamily: '-apple-system, "SF Pro Display", "Helvetica Neue", sans-serif', fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', lineHeight: 1.1 }}>{value}</div>
         {sub && <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{sub}</div>}
       </div>
       {change && (
@@ -126,7 +126,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+    <div className="dashboard-page" style={{ maxWidth: '1400px', margin: '0 auto', fontFamily: '-apple-system, "SF Pro Display", "Helvetica Neue", sans-serif' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '32px', gap: '16px', flexWrap: 'wrap' }}>
         <div>
@@ -148,7 +148,7 @@ export default function AdminDashboard() {
                 padding: '6px 14px',
                 borderRadius: '20px',
                 border: `1px solid ${period === value ? 'var(--border-active)' : 'var(--border)'}`,
-                background: period === value ? 'rgba(61,143,212,0.12)' : 'transparent',
+                background: period === value ? 'rgba(93,64,55,0.10)' : 'transparent',
                 color: period === value ? 'var(--blue-bright)' : 'var(--text-secondary)',
                 fontSize: '12px',
                 fontWeight: period === value ? '600' : '400',
@@ -193,7 +193,7 @@ export default function AdminDashboard() {
 
           {/* Revenue metrics */}
           <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', color: 'var(--text-muted)', marginBottom: '16px', fontWeight: '500' }}>Revenue & Profit</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+          <div className="dashboard-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
             <MetricCard title="Revenue (Period)" value={fmt(stats.netRevenuePeriod)} sub={`Today: ${fmt(stats.todayRevenue)}`} icon="💰" accent="gold" />
             <MetricCard title="Goods Cost" value={fmt(stats.goodsCostPeriod)} icon="📦" accent="blue" />
             <MetricCard title="Gross Profit" value={fmt(stats.grossProfitPeriod)} icon="📈" accent="green" />
@@ -202,7 +202,7 @@ export default function AdminDashboard() {
 
           {/* Billing & Inventory */}
           <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', color: 'var(--text-muted)', marginBottom: '16px', fontWeight: '500' }}>Bills & Inventory</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+          <div className="dashboard-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
             <MetricCard title="Bills (Period)" value={String(stats.periodBillCount)} sub={`Today: ${stats.todayBillCount}`} icon="🧾" accent="blue" />
             <MetricCard title="Total Bills" value={String(stats.totalBillCount)} icon="📋" accent="blue" />
             <MetricCard title="Products" value={String(stats.totalActiveProducts)} sub={`${stats.totalStockUnits} units in stock`} icon="⌚" accent="gold" />
@@ -274,6 +274,18 @@ export default function AdminDashboard() {
       )}
 
       <style>{`
+        .dashboard-page h1,
+        .dashboard-page h2,
+        .dashboard-page h3 {
+          font-family: -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif !important;
+        }
+        @media (max-width: 767px) {
+          .dashboard-metrics-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 10px !important;
+          }
+          .dashboard-metric-card { padding: 14px !important; }
+        }
         @media (max-width: 900px) {
           div[style*="grid-template-columns: 1fr 1fr"] {
             grid-template-columns: 1fr !important;

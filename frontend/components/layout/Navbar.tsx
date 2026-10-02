@@ -6,9 +6,8 @@ import { usePathname, useRouter } from 'next/navigation';
 
 const NAV_LINKS = [
   { href: '/', label: 'Home', icon: '⌂' },
-  { href: '/products', label: 'Shop' },
-  { href: '/products?new=true', label: 'New Arrivals' },
   { href: '/products', label: 'Collections' },
+  // { href: '/products/1', label: 'New Arrivals' },
   { href: '/about', label: 'About' },
   { href: '/contact', label: 'Contact' },
 ];
@@ -208,7 +207,7 @@ export default function Navbar() {
           display: 'flex',
           alignItems: 'center',
 
-          background: 'rgba(255,255,255,0.96)',
+          background: 'rgba(255,253,249,0.96)',
           borderRadius: '50px',
           padding: '4px 6px',
           gap: '2px',
@@ -236,12 +235,12 @@ export default function Navbar() {
             borderRadius: '50px',
 
             background: isActive('/')
-              ? '#282967'
+              ? '#4e342e'
               : 'transparent',
 
             color: isActive('/')
               ? '#fff'
-              : '#333',
+              : '#4e342e',
 
             textDecoration: 'none',
             fontSize: '16px',
@@ -260,10 +259,10 @@ export default function Navbar() {
             href: '/products',
             label: 'Collection',
           },
-          {
-            href: '/products?new=1',
-            label: 'New Arrivals',
-          },
+          // {
+          //   href: '/products/1',
+          //   label: 'New Arrivals',
+          // },
           {
             href: '/about',
             label: 'About',
@@ -284,12 +283,12 @@ export default function Navbar() {
                 borderRadius: '50px',
 
                 background: active
-                  ? '#293d69'
+                  ? '#4e342e'
                   : 'transparent',
 
                 color: active
                   ? '#fff'
-                  : '#222',
+                : '#4e342e',
 
                 fontSize: '14px',
                 fontWeight: active ? '600' : '500',
@@ -352,7 +351,7 @@ export default function Navbar() {
             alignItems: 'center',
             justifyContent: 'center',
 
-            color: 'rgba(255,255,255,0.85)',
+            color: 'var(--text-primary)',
             borderRadius: '50%',
             textDecoration: 'none',
             transition: 'color 0.2s',
@@ -360,13 +359,13 @@ export default function Navbar() {
           onMouseEnter={(e) => {
             (
               e.currentTarget as HTMLElement
-            ).style.color = '#fff';
+            ).style.color = 'var(--ocean-deep)';
           }}
           onMouseLeave={(e) => {
             (
               e.currentTarget as HTMLElement
             ).style.color =
-              'rgba(255,255,255,0.85)';
+              'var(--text-primary)';
           }}
         >
           <svg
@@ -565,7 +564,7 @@ export default function Navbar() {
                 </Link>
 
                 {/* My bills */}
-                <Link
+                {/* <Link
                   href="/bills"
                   style={{
                     display: 'block',
@@ -589,7 +588,7 @@ export default function Navbar() {
                   }}
                 >
                   My Bills
-                </Link>
+                </Link> */}
 
                 {/* Sign out */}
                 <button
@@ -643,7 +642,7 @@ export default function Navbar() {
               alignItems: 'center',
               justifyContent: 'center',
 
-              color: 'rgba(255,255,255,0.75)',
+              color: 'var(--text-primary)',
               borderRadius: '50%',
               textDecoration: 'none',
               transition: 'color 0.2s',
@@ -651,13 +650,13 @@ export default function Navbar() {
             onMouseEnter={(e) => {
               (
                 e.currentTarget as HTMLElement
-              ).style.color = '#fff';
+              ).style.color = 'var(--ocean-deep)';
             }}
             onMouseLeave={(e) => {
               (
                 e.currentTarget as HTMLElement
               ).style.color =
-                'rgba(255,255,255,0.75)';
+                'var(--text-primary)';
             }}
           >
             <svg
@@ -696,10 +695,10 @@ export default function Navbar() {
             alignItems: 'center',
             justifyContent: 'center',
 
-            color: 'rgba(255,255,255,0.85)',
+            color: 'var(--text-primary)',
 
             border:
-              '1px solid rgba(255,255,255,0.2)',
+              '1px solid var(--border)',
             borderRadius: 'var(--radius-sm)',
 
             background: 'transparent',
@@ -775,7 +774,7 @@ export default function Navbar() {
           right: 0,
           bottom: 0,
 
-          background: 'rgba(4,8,15,0.97)',
+          background: 'rgba(255,253,249,0.97)',
           backdropFilter: 'blur(20px)',
 
           zIndex: 999,
@@ -820,10 +819,10 @@ export default function Navbar() {
             href: '/products',
             label: 'Collections',
           },
-          {
-            href: '/products?new=1',
-            label: 'New Arrivals',
-          },
+          // {
+          //   href: '/products/1',
+          //   label: 'New Arrivals',
+          // },
           {
             href: '/about',
             label: 'About',

@@ -105,9 +105,9 @@ export default function ProductDetailPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'start' }}>
           {/* Gallery */}
           <div>
-            <div style={{ aspectRatio: '1', background: 'linear-gradient(135deg, #0d1f3c 0%, #0a1628 100%)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: '16px', position: 'relative' }}>
+            <div style={{ aspectRatio: '1', background: 'linear-gradient(135deg, #4e342e 0%, #6d4c41 50%, #3e2723 100%)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: '16px', position: 'relative' }}>
               {images.length > 0 ? (
-                <img src={images[selectedImage]} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '20px' }} />
+                <img src={images[selectedImage]} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', padding: '20px', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border)' }} />
               ) : (
                 <div style={{ fontSize: '100px', opacity: 0.5 }}>⌚</div>
               )}

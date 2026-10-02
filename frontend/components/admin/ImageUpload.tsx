@@ -28,7 +28,7 @@ export default function ImageUpload({
     padding: '48px 24px',
     textAlign: 'center',
     cursor: 'pointer',
-    background: isHovering ? 'rgba(61,143,212,0.05)' : 'var(--bg-elevated)',
+    background: isHovering ? 'rgba(93,64,55,0.06)' : 'var(--bg-elevated)',
     transition: 'all 0.2s',
     borderColor: isHovering ? 'var(--blue-accent)' : 'var(--border)',
   } as const;
@@ -129,7 +129,7 @@ export default function ImageUpload({
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        capture="environment" // Opens camera on mobile
+        // capture="environment" // Opens camera on mobile
         onChange={handleFileSelect}
         style={{ display: 'none' }}
       />
@@ -174,7 +174,7 @@ export default function ImageUpload({
         >
           <div style={{ fontSize: '48px', marginBottom: '12px' }}>📷</div>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-            Click to upload or take photo
+            Click to select an image
           </p>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             JPG, PNG or WebP (max 10MB)
