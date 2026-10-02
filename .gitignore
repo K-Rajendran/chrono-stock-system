@@ -17,7 +17,6 @@ frontend/.vercel/
 backend/target/
 backend/.mvn/wrapper/maven-wrapper.jar
 backend/*.log
-backend/src/main/resources/application-prod.yml
 
 # ─── IDE ───────────────────────────────────────────────────
 .idea/

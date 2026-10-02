@@ -23,17 +23,16 @@ WORKDIR /app
 
 # Non-root user for security
 RUN addgroup -S afino && adduser -S afino -G afino
-USER afino
 
 COPY --from=builder /app/target/afino-backend.jar app.jar
 
 USER afino
 
+EXPOSE 10000
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD wget -qO- http://localhost:10000/actuator/health || exit 1
-
-EXPOSE 10000
 
 ENTRYPOINT ["java", \
     "-XX:+UseContainerSupport", \
