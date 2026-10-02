@@ -27,8 +27,6 @@ USER afino
 
 COPY --from=builder /app/target/afino-backend.jar app.jar
 
-RUN chown afino:afino app.jar
-
 USER afino
 
 # Health check
