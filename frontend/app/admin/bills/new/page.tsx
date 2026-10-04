@@ -10,19 +10,42 @@ interface BillItemDraft {
   productId: string;
   productNameSnapshot: string;
   sellingPriceSnapshot: number;
+
+  // Manual/admin discount
   discountSnapshot: number;
   discountType: 'NONE' | 'PERCENTAGE' | 'FIXED';
+
   quantity: number;
   lineTotal: number;
+  lineDiscount: number;
 }
 
 const fmt = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 
-const calcLineTotal = (price: number, discount: number, discountType: string, qty: number) => {
-  let unit = price;
-  if (discountType === 'PERCENTAGE') unit = price * (1 - discount / 100);
-  else if (discountType === 'FIXED') unit = price - discount;
-  return Math.max(0, unit) * qty;
+const calcLineValues = (
+  price: number,
+  discount: number,
+  discountType: string,
+  qty: number
+) => {
+  let unitPrice = price;
+  let unitDiscount = 0;
+
+  if (discountType === 'PERCENTAGE') {
+    const percentage = Math.min(100, Math.max(0, discount));
+    unitDiscount = price * (percentage / 100);
+    unitPrice = price - unitDiscount;
+  } else if (discountType === 'FIXED') {
+    unitDiscount = Math.min(price, Math.max(0, discount));
+    unitPrice = price - unitDiscount;
+  }
+
+  unitPrice = Math.max(0, unitPrice);
+
+  return {
+    lineDiscount: unitDiscount * qty,
+    lineTotal: unitPrice * qty,
+  };
 };
 
 export default function AdminNewBillPage() {
@@ -47,37 +70,137 @@ export default function AdminNewBillPage() {
 
   const addProduct = (p: Product) => {
     const exists = items.find(i => i.productId === p.id);
+
     if (exists) {
-      setItems(prev => prev.map(i => i.productId === p.id
-        ? { ...i, quantity: i.quantity + 1, lineTotal: calcLineTotal(i.sellingPriceSnapshot, i.discountSnapshot, i.discountType, i.quantity + 1) }
-        : i
-      ));
+      const quantity = exists.quantity + 1;
+
+      const { lineDiscount, lineTotal } = calcLineValues(
+        exists.sellingPriceSnapshot,
+        exists.discountSnapshot,
+        exists.discountType,
+        quantity
+      );
+
+      setItems(prev =>
+        prev.map(i =>
+          i.productId === p.id
+            ? {
+                ...i,
+                quantity,
+                lineDiscount,
+                lineTotal,
+              }
+            : i
+        )
+      );
     } else {
-      const dt = (p.discountType as BillItemDraft['discountType']) || 'NONE';
-      const lt = calcLineTotal(p.sellingPrice, p.discountValue, dt, 1);
-      setItems(prev => [...prev, {
-        productId: p.id,
-        productNameSnapshot: p.name,
-        sellingPriceSnapshot: p.sellingPrice,
-        discountSnapshot: p.discountValue,
-        discountType: dt,
-        quantity: 1,
-        lineTotal: lt,
-      }]);
+      const discountType =
+        p.discountType === 'PERCENTAGE' || p.discountType === 'FIXED_AMOUNT'
+          ? p.discountType === 'FIXED_AMOUNT'
+            ? 'FIXED'
+            : 'PERCENTAGE'
+          : 'NONE';
+
+      const discount = Number(p.discountValue ?? 0);
+
+      const { lineDiscount, lineTotal } = calcLineValues(
+        p.sellingPrice,
+        discount,
+        discountType,
+        1
+      );
+
+      setItems(prev => [
+        ...prev,
+        {
+          productId: p.id,
+          productNameSnapshot: p.name,
+          sellingPriceSnapshot: p.sellingPrice,
+          discountSnapshot: discount,
+          discountType,
+          quantity: 1,
+          lineDiscount,
+          lineTotal,
+        },
+      ]);
     }
     setProductSearch('');
   };
 
   const updateQty = (productId: string, qty: number) => {
-    if (qty <= 0) { setItems(prev => prev.filter(i => i.productId !== productId)); return; }
-    setItems(prev => prev.map(i => i.productId === productId
-      ? { ...i, quantity: qty, lineTotal: calcLineTotal(i.sellingPriceSnapshot, i.discountSnapshot, i.discountType, qty) }
-      : i
-    ));
+    if (qty <= 0) {
+      setItems(prev => prev.filter(i => i.productId !== productId));
+      return;
+    }
+
+    setItems(prev =>
+      prev.map(i => {
+        if (i.productId !== productId) return i;
+
+        const { lineDiscount, lineTotal } = calcLineValues(
+          i.sellingPriceSnapshot,
+          i.discountSnapshot,
+          i.discountType,
+          qty
+        );
+
+        return {
+          ...i,
+          quantity: qty,
+          lineDiscount,
+          lineTotal,
+        };
+      })
+    );
   };
 
-  const subtotal = items.reduce((s, i) => s + i.lineTotal, 0);
+  const updateDiscount = (
+    productId: string,
+    discount: number,
+    discountType?: BillItemDraft['discountType']
+  ) => {
+    setItems(prev =>
+      prev.map(item => {
+        if (item.productId !== productId) return item;
+
+        const nextDiscount = Math.max(0, Number(discount) || 0);
+        const nextType = discountType ?? item.discountType;
+
+        const { lineDiscount, lineTotal } = calcLineValues(
+          item.sellingPriceSnapshot,
+          nextDiscount,
+          nextType,
+          item.quantity
+        );
+
+        return {
+          ...item,
+          discountSnapshot: nextDiscount,
+          discountType: nextType,
+          lineDiscount,
+          lineTotal,
+        };
+      })
+    );
+  };
+
+  const subtotal = items.reduce(
+    (s, i) => s + i.sellingPriceSnapshot * i.quantity,
+    0
+  );
+
+  const totalDiscount = items.reduce(
+    (s, i) => s + i.lineDiscount,
+    0
+  );
+
+  const finalTotal = items.reduce(
+    (s, i) => s + i.lineTotal,
+    0
+  );
+
   const filteredProducts = products.filter(p =>
+    p.stockQuantity > 0 &&
     productSearch.length >= 2 &&
     (p.name.toLowerCase().includes(productSearch.toLowerCase()))
   );
@@ -94,7 +217,21 @@ export default function AdminNewBillPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ customerName, customerPhone, paymentMethod, transactionRef, notes,
-          items: items.map(item => ({ productId: Number(item.productId), quantity: item.quantity, discountValue: item.discountSnapshot, discountType: item.discountType === 'FIXED' ? 'FIXED_AMOUNT' : item.discountType })) }),
+          items: items.map(item => ({
+            productId: Number(item.productId),
+            quantity: item.quantity,
+            discountValue:
+              item.discountType === 'NONE'
+                ? 0
+                : item.discountSnapshot,
+            discountType:
+              item.discountType === 'FIXED'
+                ? 'FIXED_AMOUNT'
+                : item.discountType === 'PERCENTAGE'
+                  ? 'PERCENTAGE'
+                  : null,
+          }))
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -164,36 +301,263 @@ export default function AdminNewBillPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Product', 'Price', 'Qty', 'Total', ''].map(h => (
+                    {['Product', 'Price', 'Qty', 'Discount', 'Total', ''].map(h => (
                       <th key={h} style={{ padding: '10px 12px', textAlign: h === '' || h === 'Product' ? 'left' : 'right', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item, i) => (
-                    <tr key={item.productId} style={{ borderBottom: i < items.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                      <td style={{ padding: '12px', color: 'var(--text-primary)', fontWeight: '500' }}>{item.productNameSnapshot}</td>
-                      <td style={{ padding: '12px', textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(item.sellingPriceSnapshot)}</td>
+                    <tr
+                      key={item.productId}
+                      style={{
+                        borderBottom:
+                          i < items.length - 1
+                            ? '1px solid var(--border)'
+                            : 'none',
+                      }}
+                    >
+                      <td style={{
+                        padding: '12px',
+                        color: 'var(--text-primary)',
+                        fontWeight: '500'
+                      }}>
+                        {item.productNameSnapshot}
+                      </td>
+
+                      <td style={{
+                        padding: '12px',
+                        textAlign: 'right',
+                        color: 'var(--text-secondary)'
+                      }}>
+                        {fmt(item.sellingPriceSnapshot)}
+                      </td>
+
                       <td style={{ padding: '12px', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                          <button onClick={() => updateQty(item.productId, item.quantity - 1)} style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '16px' }}>−</button>
-                          <span style={{ width: '32px', textAlign: 'center', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>{item.quantity}</span>
-                          <button onClick={() => updateQty(item.productId, item.quantity + 1)} style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '16px' }}>+</button>
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-sm)'
+                        }}>
+                          <button
+                            onClick={() =>
+                              updateQty(item.productId, item.quantity - 1)
+                            }
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer',
+                              fontSize: '16px'
+                            }}
+                          >
+                            −
+                          </button>
+
+                          <span style={{
+                            width: '32px',
+                            textAlign: 'center',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            color: 'var(--text-primary)'
+                          }}>
+                            {item.quantity}
+                          </span>
+
+                          <button
+                            onClick={() =>
+                              updateQty(item.productId, item.quantity + 1)
+                            }
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer',
+                              fontSize: '16px'
+                            }}
+                          >
+                            +
+                          </button>
                         </div>
                       </td>
-                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: '700', color: 'var(--text-primary)' }}>{fmt(item.lineTotal)}</td>
+
+                      {/* DISCOUNT */}
+                      <td style={{ padding: '12px', textAlign: 'right' }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'flex-end',
+                          gap: '6px'
+                        }}>
+                          <input
+                            type="number"
+                            min="0"
+                            max={
+                              item.discountType === 'PERCENTAGE'
+                                ? 100
+                                : item.sellingPriceSnapshot
+                            }
+                            step="0.01"
+                            value={item.discountSnapshot}
+                            onChange={e =>
+                              updateDiscount(
+                                item.productId,
+                                Number(e.target.value)
+                              )
+                            }
+                            style={{
+                              width: '70px',
+                              padding: '7px 8px',
+                              background: 'var(--bg-elevated)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-sm)',
+                              color: 'var(--text-primary)',
+                              fontSize: '13px',
+                              textAlign: 'right',
+                              outline: 'none',
+                            }}
+                          />
+
+                          <select
+                            value={item.discountType}
+                            onChange={e =>
+                              updateDiscount(
+                                item.productId,
+                                item.discountSnapshot,
+                                e.target.value as BillItemDraft['discountType']
+                              )
+                            }
+                            style={{
+                              padding: '7px 6px',
+                              background: 'var(--bg-elevated)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-sm)',
+                              color: 'var(--text-primary)',
+                              fontSize: '12px',
+                              outline: 'none',
+                            }}
+                          >
+                            <option value="NONE">None</option>
+                            <option value="PERCENTAGE">%</option>
+                            <option value="FIXED">₹</option>
+                          </select>
+                        </div>
+
+                        {item.lineDiscount > 0 && (
+                          <div style={{
+                            marginTop: '4px',
+                            fontSize: '11px',
+                            color: '#34d399'
+                          }}>
+                            −{fmt(item.lineDiscount)}
+                          </div>
+                        )}
+                      </td>
+
+                      <td style={{
+                        padding: '12px',
+                        textAlign: 'right',
+                        fontWeight: '700',
+                        color: 'var(--text-primary)'
+                      }}>
+                        {fmt(item.lineTotal)}
+                      </td>
+
                       <td style={{ padding: '12px' }}>
-                        <button onClick={() => setItems(prev => prev.filter(i => i.productId !== item.productId))}
-                          style={{ padding: '4px 8px', background: 'none', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius-sm)', color: '#f87171', cursor: 'pointer', fontSize: '13px' }}>×</button>
+                        <button
+                          onClick={() =>
+                            setItems(prev =>
+                              prev.filter(i => i.productId !== item.productId)
+                            )
+                          }
+                          style={{
+                            padding: '4px 8px',
+                            background: 'none',
+                            border: '1px solid rgba(239,68,68,0.25)',
+                            borderRadius: 'var(--radius-sm)',
+                            color: '#f87171',
+                            cursor: 'pointer',
+                            fontSize: '13px'
+                          }}
+                        >
+                          ×
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--border)', marginTop: '8px' }}>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Subtotal</div>
-                  <div style={{ fontSize: '20px', fontWeight: '700', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{fmt(subtotal)}</div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  paddingTop: '16px',
+                  borderTop: '1px solid var(--border)',
+                  marginTop: '8px',
+                }}
+              >
+                <div
+                  style={{
+                    minWidth: '240px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                  }}
+                >
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '14px',
+                  }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      Subtotal
+                    </span>
+                    <span style={{ color: 'var(--text-primary)' }}>
+                      {fmt(subtotal)}
+                    </span>
+                  </div>
+
+                  {totalDiscount > 0 && (
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '14px',
+                    }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        Discount
+                      </span>
+                      <span style={{ color: '#34d399' }}>
+                        −{fmt(totalDiscount)}
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    paddingTop: '10px',
+                    borderTop: '1px solid var(--border)',
+                    fontSize: '20px',
+                    fontWeight: '700',
+                  }}>
+                    <span style={{ color: 'var(--text-primary)' }}>
+                      Total
+                    </span>
+
+                    <span style={{
+                      background: 'var(--gold-gradient)',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                    }}>
+                      {fmt(finalTotal)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

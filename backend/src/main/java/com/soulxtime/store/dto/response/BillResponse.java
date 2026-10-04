@@ -5,6 +5,7 @@ import com.soulxtime.store.entity.Product;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -23,10 +24,10 @@ public class BillResponse {
     private Bill.BillStatus billStatus;
     private Long purchaseRequestId;
     private String notes;
-    private Instant whatsappSentAt;
+    private LocalDateTime whatsappSentAt;
     private List<BillItemResponse> items;
-    private Instant createdAt;
-    private Instant updatedAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class BillItemResponse {

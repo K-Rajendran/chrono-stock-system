@@ -11,6 +11,7 @@ import com.soulxtime.store.exception.ResourceNotFoundException;
 import com.soulxtime.store.repository.InventoryTransactionRepository;
 import com.soulxtime.store.repository.ProductRepository;
 import com.soulxtime.store.repository.UserRepository;
+import jakarta.persistence.OptimisticLockException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -92,36 +93,108 @@ public class InventoryService {
      * Uses optimistic locking (@Version) to prevent race conditions.
      * If two concurrent requests try to deduct stock, one will succeed,
      * the other will receive ObjectOptimisticLockingFailureException and be retried or rejected.
+     * Deducts stock for a bill operation.
+     * IMPORTANT:
+     * quantity represents ONLY the additional quantity being deducted.
+     * Example:
+     * Existing bill quantity = 2
+     * New bill quantity      = 5
+     * quantity passed here = 3
+     * The method therefore deducts only 3 from inventory.
      */
     @Transactional
-    public void deductStockForBill(Product product, int quantity, Long billId, User performedBy) {
+    public void deductStockForBill(
+            Product product,
+            int quantity,
+            Long billId,
+            User performedBy
+    ) {
+
+        if (product == null) {
+            throw new BusinessException(
+                    "INVALID_PRODUCT",
+                    "Product is required"
+            );
+        }
+
+        if (quantity <= 0) {
+            throw new BusinessException(
+                    "INVALID_QTY",
+                    "Stock deduction quantity must be greater than zero"
+            );
+        }
+
         int before = product.getStockQuantity();
+
         if (before < quantity) {
-            throw new InsufficientStockException(product.getName(), quantity, before);
+            throw new InsufficientStockException(
+                    product.getName(),
+                    quantity,
+                    before
+            );
         }
 
         int after = before - quantity;
+
+        /*
+         * Update product stock.
+         */
         product.setStockQuantity(after);
         product.updateStockStatus();
 
+        /*
+         * Save product.
+         *
+         * Product should have:
+         *
+         * @Version
+         * private Long version;
+         *
+         * This allows optimistic locking.
+         */
         try {
-            productRepository.save(product); // @Version check happens here
-        } catch (ObjectOptimisticLockingFailureException e) {
-            throw new BusinessException("STOCK_CONFLICT",
-                    "Stock was modified concurrently. Please retry your purchase.");
+
+            productRepository.save(product);
+
+            /*
+             * Force Hibernate to execute the UPDATE now rather than
+             * waiting until transaction commit.
+             *
+             * This makes the optimistic-lock exception happen here,
+             * where we can convert it into our business exception.
+             */
+            productRepository.flush();
+
+        } catch (ObjectOptimisticLockingFailureException |
+                 OptimisticLockException e) {
+
+            throw new BusinessException(
+                    "STOCK_CONFLICT",
+                    "Stock was modified by another transaction. " +
+                            "Please refresh and try again."
+            );
         }
 
-        InventoryTransaction tx = InventoryTransaction.builder()
-                .product(product)
-                .transactionType(InventoryTransaction.TransactionType.SALE)
-                .quantityChange(-quantity)
-                .quantityBefore(before)
-                .quantityAfter(after)
-                .reason("Sale - Bill #" + billId)
-                .referenceId(billId)
-                .referenceType("BILL")
-                .performedBy(performedBy)
-                .build();
+        /*
+         * Record inventory movement.
+         */
+        InventoryTransaction tx =
+                InventoryTransaction.builder()
+                        .product(product)
+                        .transactionType(
+                                InventoryTransaction.TransactionType.SALE
+                        )
+                        .quantityChange(-quantity)
+                        .quantityBefore(before)
+                        .quantityAfter(after)
+                        .reason(
+                                "Sale - Bill #"
+                                        + billId
+                        )
+                        .referenceId(billId)
+                        .referenceType("BILL")
+                        .performedBy(performedBy)
+                        .build();
 
         transactionRepository.save(tx);
     }

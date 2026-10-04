@@ -31,15 +31,22 @@ export default function Footer() {
         }}
       >
         {/* Brand */}
-        <div className="footer-brand">
+        <div
+          className="footer-brand"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+          }}
+        >
           <div style={{ marginBottom: '16px' }}>
             <img
-              src="/afino-logo.svg"
+              src="/afino-logo-only.svg"
               alt="AFINO"
               style={{
                 width: '104px',
                 height: '104px',
-                filter: 'invert(1) sepia(1) saturate(2) hue-rotate(185deg) brightness(1.2)',
                 marginBottom: '8px',
               }}
             />
@@ -64,6 +71,7 @@ export default function Footer() {
               fontSize: '13px',
               lineHeight: '1.7',
               maxWidth: '220px',
+              margin: '0 auto',
               fontStyle: 'italic',
               fontFamily: 'var(--font-display)',
             }}
@@ -127,7 +135,7 @@ export default function Footer() {
           </h4>
           {[
             { href: '/account', label: 'My Account' },
-            { href: '/bills', label: 'My Bills' },
+            // { href: '/bills', label: 'My Bills' },
             { href: '/cart', label: 'Cart' },
             ...(!signedIn ? [{ href: '/login', label: 'Sign In' }, { href: '/register', label: 'Register' }] : []),
           ].map(({ href, label }) => (
@@ -165,9 +173,9 @@ export default function Footer() {
           </h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {[
-              { icon: '📧', label: 'contact@soulxtime.com' },
+              { icon: '📧', label: 'mhdnr148@gmail.com' },
               { icon: '📱', label: 'WhatsApp Available' },
-              { icon: '🕐', label: 'Mon–Sat, 10am–7pm' },
+              { icon: '🕐', label: 'Mon–Sun · 10am–9pm IST' },
             ].map(({ icon, label }) => (
               <div key={label} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                 <span style={{ fontSize: '14px' }}>{icon}</span>

@@ -4,7 +4,7 @@ import com.soulxtime.store.entity.PurchaseRequest;
 import com.soulxtime.store.entity.Product;
 import lombok.*;
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -20,10 +20,10 @@ public class PurchaseRequestResponse {
     private BigDecimal totalAmount;
     private String notes;
     private Long billId;
-    private Instant whatsappSentAt;
+    private LocalDateTime whatsappSentAt;
     private List<PRItemResponse> items;
-    private Instant createdAt;
-    private Instant updatedAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class PRItemResponse {

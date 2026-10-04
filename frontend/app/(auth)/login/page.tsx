@@ -84,7 +84,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <Link href="/">
-            <img src="/afino-logo.svg" alt="AFINO" style={{ width: '158px', height: '158px', margin: '0 auto 12px', filter: 'invert(1) sepia(1) saturate(2) hue-rotate(185deg) brightness(1.3)' }} />
+            <img src="/afino-logo-only.svg" alt="AFINO" style={{ width: '80px', height: '80px', margin: '0 auto 12px',}} />
           </Link>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: '600', letterSpacing: '0.15em', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>AFINO</div>
           <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '6px' }}>Sign in to your account</p>

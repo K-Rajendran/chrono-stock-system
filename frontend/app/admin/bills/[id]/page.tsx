@@ -56,9 +56,11 @@ export default function AdminBillDetailPage() {
     paymentMethod: 'CASH',
     paymentStatus: 'PENDING',
     transactionReference: '',
-    billStatus: 'PENDING',
+    billStatus: 'DRAFT',
     notes: '',
   });
+
+  const [editItems, setEditItems] = useState<BillItem[]>([]);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500); };
 
@@ -79,31 +81,156 @@ export default function AdminBillDetailPage() {
         billStatus: data.billStatus,
         notes: data.notes ?? '',
       });
+      setEditItems(data.items);
     } catch { setError('Could not load bill.'); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { fetchBill(); }, [id]);
 
+  const calculateEditLine = (
+    item: BillItem,
+    discountValue: number,
+    discountType: BillItem['discountType'],
+    quantity: number
+  ) => {
+    const safeQuantity = Math.max(0, quantity);
+    let normalizedDiscount = Math.max(0, Number(discountValue) || 0);
+
+    if (discountType === 'PERCENTAGE') {
+      normalizedDiscount = Math.min(100, normalizedDiscount);
+    } else {
+      normalizedDiscount = Math.min(item.sellingPrice, normalizedDiscount);
+    }
+
+    const discountPerUnit =
+      discountType === 'PERCENTAGE'
+        ? item.sellingPrice * normalizedDiscount / 100
+        : normalizedDiscount;
+
+    const unitPrice = Math.max(
+      0,
+      item.sellingPrice - discountPerUnit
+    );
+
+    return {
+      discountValue: normalizedDiscount,
+      lineDiscount: discountPerUnit * safeQuantity,
+      totalPrice: unitPrice * safeQuantity,
+    };
+  };
+
+  const updateEditDiscount = (
+    itemId: string,
+    value: number,
+    type?: BillItem['discountType']
+  ) => {
+    setEditItems(prev =>
+      prev.map(item => {
+        if (item.id !== itemId) return item;
+
+        const discountType = type ?? item.discountType;
+
+        const {
+          discountValue,
+          totalPrice,
+        } = calculateEditLine(
+          item,
+          value,
+          discountType,
+          item.quantity
+        );
+
+        return {
+          ...item,
+          discountValue,
+          discountType,
+          totalPrice,
+        };
+      })
+    );
+  };
+
+  const updateEditQty = (itemId: string, quantity: number) => {
+    if (quantity <= 0) {
+      setEditItems(prev =>
+        prev.filter(item => item.id !== itemId)
+      );
+      return;
+    }
+
+    setEditItems(prev =>
+      prev.map(item => {
+        if (item.id !== itemId) return item;
+
+        const { totalPrice } = calculateEditLine(
+          item,
+          item.discountValue,
+          item.discountType,
+          quantity
+        );
+
+        return {
+          ...item,
+          quantity,
+          totalPrice,
+        };
+      })
+    );
+  };
+
   const handleSave = async () => {
     setSaving(true);
+
     try {
       const token = localStorage.getItem('sxt_token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ ...editData, transactionRef: editData.transactionReference }),
-      });
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            ...editData,
+
+            transactionRef: editData.transactionReference,
+
+            items: editItems.map(item => ({
+              productId: Number(item.productId),
+              quantity: item.quantity,
+              discountValue: item.discountValue ?? 0,
+              discountType:
+                item.discountType === 'FIXED_AMOUNT'
+                  ? 'FIXED_AMOUNT'
+                  : item.discountType === 'PERCENTAGE'
+                    ? 'PERCENTAGE'
+                    : null,
+            })),
+          }),
+        }
+      );
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message ?? 'Save failed');
       }
+
       showToast('Bill updated successfully.');
       setEditMode(false);
-      fetchBill();
+
+      await fetchBill();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Failed to save changes.');
-    } finally { setSaving(false); }
+      showToast(
+        e instanceof Error
+          ? e.message
+          : 'Failed to save changes.'
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSendWhatsApp = async () => {
@@ -127,7 +254,7 @@ export default function AdminBillDetailPage() {
           `Customer: ${bill.customerName}\n` +
           `Date: ${fmtDate(bill.createdAt)}\n\n` +
           bill.items.map(i => `• ${i.productName} × ${i.quantity} — ${fmt(i.totalPrice)}`).join('\n') +
-          `\n\nTotal: *${fmt(bill.finalTotal)}*\n` +
+          `\n\nTotal: *${fmt(displayedFinalTotal)}*\n` +
           `Payment: ${bill.paymentMethod} | ${bill.paymentStatus}`
       );
       window.open(`https://wa.me/${bill.customerPhone.replace(/\D/g, '')}?text=${msg}`, '_blank');
@@ -158,9 +285,132 @@ export default function AdminBillDetailPage() {
     </div>
   );
 
+  const displayedItems = editMode
+  ? editItems
+  : bill.items;
+
+  const displayedSubtotal = displayedItems.reduce(
+    (sum, item) => sum + item.sellingPrice * item.quantity,
+    0
+  );
+
+  const displayedDiscount = displayedItems.reduce((sum, item) => {
+    if (item.discountType === 'PERCENTAGE') {
+      const percentage = Math.min(
+        100,
+        Math.max(0, item.discountValue ?? 0)
+      );
+
+      return sum +
+        item.sellingPrice *
+        (percentage / 100) *
+        item.quantity;
+    }
+
+    const fixedDiscount = Math.min(
+      item.sellingPrice,
+      Math.max(0, item.discountValue ?? 0)
+    );
+
+    return sum + fixedDiscount * item.quantity;
+  }, 0);
+
+  const displayedFinalTotal =
+    Math.max(0, displayedSubtotal - displayedDiscount);
+
   return (
     <>
-      <style>{`@media print { .no-print { display: none !important; } body { background: white !important; color: black !important; } }`}</style>
+      <style>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 10mm;
+          }
+
+          html,
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+          }
+
+          /* Hide the entire application */
+          body * {
+            visibility: hidden !important;
+          }
+
+          /* Show only the bill */
+          .bill-print,
+          .bill-print * {
+            visibility: visible !important;
+          }
+
+          .bill-page-container {
+            max-width: none !important;
+            width: 100% !important;
+            margin: 0 !important;
+          }
+
+          /* Remove screen positioning/container restrictions */
+          .bill-print {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+
+            width: 100% !important;
+            max-width: none !important;
+
+            margin: 0 !important;
+            padding: 0 !important;
+
+            border: 1px solid #d1d5db !important;
+            border-radius: 0 !important;
+
+            box-shadow: none !important;
+
+            background: #ffffff !important;
+            color: #111827 !important;
+
+            overflow: visible !important;
+          }
+
+          /* Never print admin controls */
+          .no-print {
+            display: none !important;
+          }
+
+          /* Preserve colors/backgrounds when printing */
+          .bill-print,
+          .bill-print * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          /* Prevent sections from being split unnecessarily */
+          .bill-print table {
+            page-break-inside: auto;
+          }
+
+          .bill-print tr {
+            page-break-inside: avoid !important;
+            page-break-after: auto;
+          }
+
+          .bill-print thead {
+            display: table-header-group;
+          }
+
+          .bill-print tfoot {
+            display: table-footer-group;
+          }
+
+          /* Don't allow horizontal scrolling in the printed document */
+          .bill-print > div {
+            overflow: visible !important;
+          }
+        }
+      `}</style>
 
       {toast && (
         <div style={{ position: 'fixed', bottom: '24px', right: '24px', padding: '12px 20px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '14px', zIndex: 9999, boxShadow: 'var(--shadow-lg)' }}>
@@ -168,12 +418,13 @@ export default function AdminBillDetailPage() {
         </div>
       )}
 
-      <div style={{ maxWidth: '960px', margin: '0 auto' }}>
+      <div className="bill-page-container" style={{ maxWidth: '960px', margin: '0 auto' }}>
         {/* Top actions */}
         <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', gap: '12px', flexWrap: 'wrap' }}>
           <Link href="/admin/bills" style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none' }}>← Bills</Link>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {!editMode ? (
+            {bill.billStatus !== 'CANCELLED' && (
+              !editMode ? (
               <button onClick={() => setEditMode(true)} style={{ padding: '8px 16px', background: 'rgba(61,143,212,0.1)', border: '1px solid var(--border-active)', borderRadius: 'var(--radius-md)', color: 'var(--blue-bright)', fontSize: '13px', cursor: 'pointer' }}>
                 Edit Bill
               </button>
@@ -186,6 +437,7 @@ export default function AdminBillDetailPage() {
                   Cancel
                 </button>
               </>
+              )
             )}
             <button onClick={handleSendWhatsApp} style={{ padding: '8px 16px', background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.3)', borderRadius: 'var(--radius-md)', color: '#25D366', fontSize: '13px', cursor: 'pointer' }}>
               📱 Send WhatsApp
@@ -202,7 +454,16 @@ export default function AdminBillDetailPage() {
         </div>
 
         {/* Bill document */}
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)', overflow: 'hidden', boxShadow: 'var(--shadow-lg)' }}>
+        <div
+          className="bill-print"
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-xl)',
+            overflow: 'hidden',
+            boxShadow: 'var(--shadow-lg)',
+          }}
+        >
           {/* Brand header */}
           <div style={{ padding: '36px 48px 28px', background: 'linear-gradient(135deg, rgba(8,20,40,0.9) 0%, rgba(13,32,64,0.8) 100%)', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '26px', fontWeight: '600', letterSpacing: '0.2em', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', marginBottom: '4px' }}>
@@ -212,7 +473,16 @@ export default function AdminBillDetailPage() {
           </div>
 
           {/* Bill meta */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', padding: '28px 40px', borderBottom: '1px solid var(--border)' }}>
+          <div
+            className="bill-meta"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '24px',
+              padding: '28px 40px',
+              borderBottom: '1px solid var(--border)',
+            }}
+          >
             <div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Bill Number</div>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)' }}>#{bill.billNumber}</div>
@@ -243,13 +513,140 @@ export default function AdminBillDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {bill.items.map((item, i) => (
-                  <tr key={item.id} style={{ borderBottom: i < bill.items.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                {displayedItems.map((item, i) => (
+                  <tr key={item.id} style={{ borderBottom: i < displayedItems.length - 1 ? '1px solid var(--border)' : 'none' }}>
                     <td style={{ padding: '14px 20px', color: 'var(--text-primary)', fontWeight: '500' }}>{item.productName}</td>
                     <td style={{ padding: '14px 20px', textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(item.sellingPrice)}</td>
-                    <td style={{ padding: '14px 20px', textAlign: 'right', color: 'var(--text-secondary)' }}>{item.quantity}</td>
-                    <td style={{ padding: '14px 20px', textAlign: 'right', color: 'var(--text-secondary)' }}>
-                      {item.discountValue > 0 ? (item.discountType === 'PERCENTAGE' ? `${item.discountValue}%` : fmt(item.discountValue)) : '—'}
+                    <td style={{
+                      padding: '14px 20px',
+                      textAlign: 'right',
+                      color: 'var(--text-secondary)'
+                    }}>
+                      {editMode ? (
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-sm)',
+                        }}>
+                          <button
+                            onClick={() =>
+                              updateEditQty(item.id, item.quantity - 1)
+                            }
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            −
+                          </button>
+
+                          <span style={{
+                            width: '34px',
+                            textAlign: 'center',
+                            color: 'var(--text-primary)',
+                            fontWeight: '600',
+                          }}>
+                            {item.quantity}
+                          </span>
+
+                          <button
+                            onClick={() =>
+                              updateEditQty(item.id, item.quantity + 1)
+                            }
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            +
+                          </button>
+                        </div>
+                      ) : (
+                        item.quantity
+                      )}
+                    </td>
+                    <td style={{
+                      padding: '14px 20px',
+                      textAlign: 'right',
+                      color: 'var(--text-secondary)'
+                    }}>
+                      {editMode ? (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'flex-end',
+                          gap: '6px'
+                        }}>
+                          <input
+                            type="number"
+                            min="0"
+                            max={
+                              item.discountType === 'PERCENTAGE'
+                                ? 100
+                                : item.sellingPrice
+                            }
+                            step="0.01"
+                            value={item.discountValue ?? 0}
+                            onChange={e =>
+                              updateEditDiscount(
+                                item.id,
+                                Number(e.target.value)
+                              )
+                            }
+                            style={{
+                              width: '70px',
+                              padding: '7px 8px',
+                              background: 'var(--bg-elevated)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-sm)',
+                              color: 'var(--text-primary)',
+                              fontSize: '13px',
+                              textAlign: 'right',
+                              outline: 'none',
+                            }}
+                          />
+
+                          <select
+                            value={item.discountType}
+                            onChange={e =>
+                              updateEditDiscount(
+                                item.id,
+                                item.discountValue ?? 0,
+                                e.target.value as BillItem['discountType']
+                              )
+                            }
+                            style={{
+                              padding: '7px 6px',
+                              background: 'var(--bg-elevated)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-sm)',
+                              color: 'var(--text-primary)',
+                              fontSize: '12px',
+                              outline: 'none',
+                            }}
+                          >
+                            <option value="PERCENTAGE">%</option>
+                            <option value="FIXED_AMOUNT">₹</option>
+                          </select>
+                        </div>
+                      ) : (
+                        item.discountValue > 0
+                          ? (
+                            item.discountType === 'PERCENTAGE'
+                              ? `${item.discountValue}%`
+                              : fmt(item.discountValue)
+                          )
+                          : '—'
+                      )}
                     </td>
                     <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: '700', color: 'var(--text-primary)' }}>{fmt(item.totalPrice)}</td>
                   </tr>
@@ -259,7 +656,14 @@ export default function AdminBillDetailPage() {
           </div>
 
           {/* Payment + totals */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid var(--border)' }}>
+          <div
+            className="bill-payment-summary"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              borderTop: '1px solid var(--border)',
+            }}
+          >
             {/* Payment fields — editable if in edit mode */}
             <div style={{ padding: '24px 32px', borderRight: '1px solid var(--border)' }}>
               <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '16px' }}>Payment</div>
@@ -311,17 +715,17 @@ export default function AdminBillDetailPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Subtotal</span>
-                  <span style={{ color: 'var(--text-primary)' }}>{fmt(bill.subtotal)}</span>
+                  <span style={{ color: 'var(--text-primary)' }}>{fmt(displayedSubtotal)}</span>
                 </div>
-                {bill.totalDiscount > 0 && (
+                {displayedDiscount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Discount</span>
-                    <span style={{ color: '#34d399' }}>−{fmt(bill.totalDiscount)}</span>
+                    <span style={{ color: '#34d399' }}>−{fmt(displayedDiscount)}</span>
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: '700', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
                   <span style={{ color: 'var(--text-primary)' }}>Total</span>
-                  <span style={{ background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{fmt(bill.finalTotal)}</span>
+                  <span style={{ background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{fmt(displayedFinalTotal)}</span>
                 </div>
               </div>
             </div>
@@ -338,8 +742,34 @@ export default function AdminBillDetailPage() {
 
       <style>{`
         @media (max-width: 640px) {
-          div[style*="grid-template-columns: 1fr 1fr"]:not(table *) {
+          .bill-meta {
             grid-template-columns: 1fr !important;
+            padding: 24px 20px !important;
+          }
+
+          .bill-payment-summary {
+            grid-template-columns: 1fr !important;
+          }
+
+          .bill-payment-summary > div {
+            border-right: none !important;
+            border-bottom: 1px solid var(--border);
+          }
+        }
+
+        @media (max-width: 480px) {
+          .bill-print table {
+            font-size: 12px !important;
+          }
+
+          .bill-print th,
+          .bill-print td {
+            padding: 10px 8px !important;
+          }
+
+          .bill-print > div:first-child {
+            padding-left: 20px !important;
+            padding-right: 20px !important;
           }
         }
       `}</style>

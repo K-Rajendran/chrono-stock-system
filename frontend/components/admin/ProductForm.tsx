@@ -243,9 +243,22 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
         {/* Inventory */}
         <Section title="Inventory">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            {FIELD('Stock Quantity *', 'stockQuantity',
-              <><input type="number" min="0" style={{ ...INPUT_STYLE, borderColor: errors.stockQuantity ? '#f87171' : 'var(--border)' }} value={form.stockQuantity} onChange={e => set('stockQuantity', e.target.value)} />
-              {errors.stockQuantity && <span style={{ fontSize: '12px', color: '#f87171', marginTop: '4px', display: 'block' }}>{errors.stockQuantity}</span>}</>
+            {FIELD(
+              'Stock Quantity',
+              'stockQuantity',
+              <div
+                style={{
+                  ...INPUT_STYLE,
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-secondary)',
+                  cursor: 'not-allowed',
+                  opacity: 0.8,
+                }}
+              >
+                {form.stockQuantity}
+              </div>
             )}
             {FIELD('Low Stock Threshold', 'lowStockThreshold',
               <input type="number" min="0" style={INPUT_STYLE} value={form.lowStockThreshold} onChange={e => set('lowStockThreshold', e.target.value)} />
@@ -295,7 +308,7 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
         </Section>
 
         {/* Specifications */}
-        <Section title="Specifications">
+        {/* <Section title="Specifications">
           {Object.entries(form.specifications).map(([key, val]) => (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
               <span style={{ fontSize: '13px', color: 'var(--text-secondary)', minWidth: '120px' }}>{key}</span>
@@ -308,7 +321,7 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
             <input style={INPUT_STYLE} placeholder="Value (e.g. Automatic)" value={specVal} onChange={e => setSpecVal(e.target.value)} />
             <button onClick={addSpec} style={{ padding: '10px 16px', background: 'rgba(61,143,212,0.1)', border: '1px solid var(--border-active)', borderRadius: 'var(--radius-md)', color: 'var(--blue-bright)', cursor: 'pointer', fontSize: '13px', whiteSpace: 'nowrap' }}>+ Add</button>
           </div>
-        </Section>
+        </Section> */}
 
         {/* Active toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

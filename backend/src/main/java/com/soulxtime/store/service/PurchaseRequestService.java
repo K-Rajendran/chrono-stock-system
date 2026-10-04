@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -214,6 +216,13 @@ public class PurchaseRequestService {
                         .build())
                 .toList();
 
+        ZoneId indiaZone = ZoneId.of("Asia/Kolkata");
+        LocalDateTime whatsappSentAt = pr.getWhatsappSentAt() != null
+                ? LocalDateTime.ofInstant(pr.getWhatsappSentAt(), indiaZone)
+                : null;
+        LocalDateTime createdAt = pr.getCreatedAt().atZone(indiaZone).toLocalDateTime();
+        LocalDateTime updatedAt = pr.getUpdatedAt().atZone(indiaZone).toLocalDateTime();
+
         return PurchaseRequestResponse.builder()
                 .id(pr.getId())
                 .referenceId(pr.getReferenceId())
@@ -226,10 +235,10 @@ public class PurchaseRequestService {
                 .totalAmount(pr.getTotalAmount())
                 .notes(pr.getNotes())
                 .billId(pr.getBillId())
-                .whatsappSentAt(pr.getWhatsappSentAt())
+                .whatsappSentAt(whatsappSentAt)
                 .items(items)
-                .createdAt(pr.getCreatedAt())
-                .updatedAt(pr.getUpdatedAt())
+                .createdAt(createdAt)
+                .updatedAt(updatedAt)
                 .build();
     }
 }

@@ -31,13 +31,28 @@ export default function ContactPage() {
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (sending) return;
     setSending(true);
-    // In a real app this would POST to an API or email service
-    await new Promise(r => setTimeout(r, 800));
-    setSent(true);
+
+    const message =
+      `*AFINO — Contact Form*\n\n` +
+      `*Name:* ${form.name}\n` +
+      `*Email:* ${form.email}\n` +
+      `*Phone:* ${form.phone || 'Not provided'}\n` +
+      `*Subject:* ${form.subject}\n\n` +
+      `*Message:*\n${form.message}`;
+
+    const encodedMessage = encodeURIComponent(message).replace(/\+/g, '%20');
+
+    const whatsappUrl =
+      `https://api.whatsapp.com/send?phone=916381004076&text=${encodedMessage}`;
+
+    window.open(whatsappUrl, '_blank');
+
     setSending(false);
+    setSent(true);
   };
 
   return (
@@ -53,64 +68,235 @@ export default function ContactPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '40px', alignItems: 'start' }}>
         {/* Form */}
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)', padding: '40px' }}>
+        <div
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-xl)',
+            padding: '40px',
+          }}
+        >
           {sent ? (
             <div style={{ textAlign: 'center', padding: '40px 0' }}>
               <div style={{ fontSize: '56px', marginBottom: '16px' }}>✓</div>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '22px', color: 'var(--text-primary)', marginBottom: '8px' }}>Message Sent!</h3>
-              <p style={{ color: 'var(--text-secondary)' }}>We'll get back to you shortly.</p>
-              <button onClick={() => { setSent(false); setForm({ name: '', email: '', phone: '', subject: 'General', message: '' }); }}
-                style={{ marginTop: '20px', padding: '10px 24px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '14px' }}>
+
+              <h3
+                style={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '22px',
+                  color: 'var(--text-primary)',
+                  marginBottom: '8px',
+                }}
+              >
+                Message Sent!
+              </h3>
+
+              <p style={{ color: 'var(--text-secondary)' }}>
+                WhatsApp has been opened with your message.
+              </p>
+
+              <button
+                onClick={() => {
+                  setSent(false);
+                  setForm({
+                    name: '',
+                    email: '',
+                    phone: '',
+                    subject: 'General',
+                    message: '',
+                  });
+                }}
+                style={{
+                  marginTop: '20px',
+                  padding: '10px 24px',
+                  background: 'none',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                }}
+              >
                 Send Another
               </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <form
+              onSubmit={handleSubmit}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '20px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '16px',
+                }}
+              >
                 <div>
                   <label style={LBL}>Name *</label>
-                  <input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Your name" style={INPUT}
-                    onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }}
-                    onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }}
+
+                  <input
+                    required
+                    value={form.name}
+                    onChange={e =>
+                      setForm(f => ({
+                        ...f,
+                        name: e.target.value,
+                      }))
+                    }
+                    placeholder="Your name"
+                    style={INPUT}
+                    onFocus={e => {
+                      e.currentTarget.style.borderColor =
+                        'var(--border-active)';
+                    }}
+                    onBlur={e => {
+                      e.currentTarget.style.borderColor =
+                        'var(--border)';
+                    }}
                   />
                 </div>
+
                 <div>
                   <label style={LBL}>Email *</label>
-                  <input required type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="you@example.com" style={INPUT}
-                    onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }}
-                    onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }}
+
+                  <input
+                    required
+                    type="email"
+                    value={form.email}
+                    onChange={e =>
+                      setForm(f => ({
+                        ...f,
+                        email: e.target.value,
+                      }))
+                    }
+                    placeholder="you@example.com"
+                    style={INPUT}
+                    onFocus={e => {
+                      e.currentTarget.style.borderColor =
+                        'var(--border-active)';
+                    }}
+                    onBlur={e => {
+                      e.currentTarget.style.borderColor =
+                        'var(--border)';
+                    }}
                   />
                 </div>
               </div>
+
               <div>
                 <label style={LBL}>Phone</label>
-                <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+91 98765 43210" style={INPUT}
-                  onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-active)'; }}
-                  onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'var(--border)'; }}
+
+                <input
+                  value={form.phone}
+                  onChange={e =>
+                    setForm(f => ({
+                      ...f,
+                      phone: e.target.value,
+                    }))
+                  }
+                  placeholder="+91 98765 43210"
+                  style={INPUT}
+                  onFocus={e => {
+                    e.currentTarget.style.borderColor =
+                      'var(--border-active)';
+                  }}
+                  onBlur={e => {
+                    e.currentTarget.style.borderColor =
+                      'var(--border)';
+                  }}
                 />
               </div>
+
               <div>
                 <label style={LBL}>Subject</label>
-                <select value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
-                  style={{ ...INPUT, cursor: 'pointer' }}>
+
+                <select
+                  value={form.subject}
+                  onChange={e =>
+                    setForm(f => ({
+                      ...f,
+                      subject: e.target.value,
+                    }))
+                  }
+                  style={{
+                    ...INPUT,
+                    cursor: 'pointer',
+                  }}
+                >
                   <option value="General">General Inquiry</option>
                   <option value="Product">Product Inquiry</option>
                   <option value="Support">Support</option>
                   <option value="Other">Other</option>
                 </select>
               </div>
+
               <div>
                 <label style={LBL}>Message *</label>
-                <textarea required rows={5} value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} placeholder="Tell us how we can help…"
-                  style={{ ...INPUT, resize: 'vertical' }}
-                  onFocus={e => { (e.target as HTMLTextAreaElement).style.borderColor = 'var(--border-active)'; }}
-                  onBlur={e => { (e.target as HTMLTextAreaElement).style.borderColor = 'var(--border)'; }}
+
+                <textarea
+                  required
+                  rows={5}
+                  value={form.message}
+                  onChange={e =>
+                    setForm(f => ({
+                      ...f,
+                      message: e.target.value,
+                    }))
+                  }
+                  placeholder="Tell us how we can help…"
+                  style={{
+                    ...INPUT,
+                    resize: 'vertical',
+                  }}
+                  onFocus={e => {
+                    e.currentTarget.style.borderColor =
+                      'var(--border-active)';
+                  }}
+                  onBlur={e => {
+                    e.currentTarget.style.borderColor =
+                      'var(--border)';
+                  }}
                 />
               </div>
-              <button type="submit" disabled={sending}
-                style={{ padding: '13px', background: 'var(--gold-gradient)', color: '#000', fontWeight: '700', fontSize: '14px', borderRadius: 'var(--radius-md)', border: 'none', cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                {sending && <div style={{ width: 14, height: 14, border: '2px solid rgba(0,0,0,0.3)', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
-                {sending ? 'Sending…' : 'Send Message'}
+
+              <button
+                type="submit"
+                disabled={sending}
+                style={{
+                  padding: '13px',
+                  background: 'var(--gold-gradient)',
+                  color: '#000',
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  borderRadius: 'var(--radius-md)',
+                  border: 'none',
+                  cursor: sending ? 'not-allowed' : 'pointer',
+                  opacity: sending ? 0.6 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                }}
+              >
+                {sending && (
+                  <div
+                    style={{
+                      width: 14,
+                      height: 14,
+                      border: '2px solid rgba(0,0,0,0.3)',
+                      borderTopColor: '#000',
+                      borderRadius: '50%',
+                      animation: 'spin 0.8s linear infinite',
+                    }}
+                  />
+                )}
+
+                {sending ? 'Opening WhatsApp…' : 'Send Message'}
               </button>
             </form>
           )}
@@ -119,9 +305,9 @@ export default function ContactPage() {
         {/* Contact info */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {[
-            { icon: '📧', title: 'Email', value: 'contact@soulxtime.com' },
+            { icon: '📧', title: 'Email', value: 'mhdnr148@gmail.com' },
             { icon: '📱', title: 'WhatsApp', value: 'Available on request' },
-            { icon: '🕐', title: 'Hours', value: 'Mon–Sat · 10am–7pm IST' },
+            { icon: '🕐', title: 'Hours', value: 'Mon–Sun · 10am–9pm IST' },
             { icon: '📍', title: 'Location', value: 'India' },
           ].map(({ icon, title, value }) => (
             <div key={title} style={{ display: 'flex', gap: '16px', padding: '20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', alignItems: 'flex-start' }}>

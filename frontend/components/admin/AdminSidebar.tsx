@@ -125,9 +125,9 @@ export default function AdminSidebar({ mobileOpen, onClose }: AdminSidebarProps)
         <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid var(--border)' }}>
           <Link href="/admin/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
             <img
-              src="/afino-logo.svg"
+              src="/afino-logo-only.svg"
               alt="AFINO"
-              style={{ width: '72px', height: '72px', filter: 'invert(1) sepia(1) saturate(2) hue-rotate(185deg) brightness(1.2)' }}
+              style={{ width: '72px', height: '72px' }}
             />
             <div>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: '600', letterSpacing: '0.1em', background: 'var(--gold-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>

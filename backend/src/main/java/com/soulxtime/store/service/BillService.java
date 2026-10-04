@@ -21,9 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
@@ -253,131 +251,399 @@ public class BillService {
      */
     @Transactional
     public BillResponse updateBill(Long billId, BillUpdateRequest req, Long adminId) {
+
         Bill bill = billRepository.findById(billId)
-                .orElseThrow(() -> new ResourceNotFoundException("Bill", billId));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Bill", billId));
 
         if (bill.getBillStatus() == Bill.BillStatus.CANCELLED) {
-            throw new BusinessException("BILL_CANCELLED", "Cannot edit a cancelled bill");
+            throw new BusinessException(
+                    "BILL_CANCELLED",
+                    "Cannot edit a cancelled bill"
+            );
         }
 
         User admin = userRepository.findById(adminId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", adminId));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User", adminId));
 
-        // Build map of current items: productId -> quantity
-        Map<Long, Integer> currentItems = new LinkedHashMap<>();
-        Map<Long, BillItem> currentItemMap = new LinkedHashMap<>();
-        for (BillItem item : bill.getItems()) {
-            if (item.getProduct() != null) {
-                currentItems.put(item.getProduct().getId(), item.getQuantity());
-                currentItemMap.put(item.getProduct().getId(), item);
-            }
-        }
+        /*
+         * ============================================================
+         * UPDATE ITEMS + INVENTORY
+         * ============================================================
+         */
 
         if (req.getItems() != null) {
-            // Build new item map
-            Map<Long, BillCreateRequest.BillItemRequest> newItems = new LinkedHashMap<>();
+
+            /*
+             * Existing bill quantities
+             *
+             * productId -> old quantity
+             */
+            Map<Long, Integer> currentQuantities = new LinkedHashMap<>();
+
+            for (BillItem item : bill.getItems()) {
+
+                if (item.getProduct() == null) {
+                    continue;
+                }
+
+                Long productId = item.getProduct().getId();
+
+                currentQuantities.merge(
+                        productId,
+                        item.getQuantity(),
+                        Integer::sum
+                );
+            }
+
+            /*
+             * New requested quantities
+             *
+             * productId -> new item request
+             */
+            Map<Long, BillCreateRequest.BillItemRequest> requestedItems =
+                    new LinkedHashMap<>();
+
             for (BillCreateRequest.BillItemRequest itemReq : req.getItems()) {
-                if (itemReq.getQuantity() <= 0) {
-                    throw new BusinessException("INVALID_QTY", "Quantity must be at least 1");
+
+                if (itemReq.getProductId() == null) {
+                    throw new BusinessException(
+                            "INVALID_PRODUCT",
+                            "Product ID is required"
+                    );
                 }
-                newItems.put(itemReq.getProductId(), itemReq);
+
+                if ((itemReq.getQuantity() <= 0)) {
+
+                    throw new BusinessException(
+                            "INVALID_QTY",
+                            "Quantity must be at least 1"
+                    );
+                }
+
+                /*
+                 * Prevent the same product from being submitted twice.
+                 */
+                if (requestedItems.containsKey(itemReq.getProductId())) {
+                    throw new BusinessException(
+                            "DUPLICATE_PRODUCT",
+                            "Product cannot appear more than once in a bill"
+                    );
+                }
+
+                requestedItems.put(
+                        itemReq.getProductId(),
+                        itemReq
+                );
             }
 
-            // Items removed → return stock
-            for (Long productId : currentItems.keySet()) {
-                if (!newItems.containsKey(productId)) {
+            /*
+             * ========================================================
+             * 1. REMOVED PRODUCTS
+             *
+             * Old quantity exists, new quantity doesn't.
+             * Return the complete old quantity to inventory.
+             * ========================================================
+             */
+
+            for (Map.Entry<Long, Integer> entry :
+                    currentQuantities.entrySet()) {
+
+                Long productId = entry.getKey();
+                int oldQty = entry.getValue();
+
+                if (!requestedItems.containsKey(productId)) {
+
                     Product product = productRepository.findById(productId)
-                            .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
-                    int qtyToReturn = currentItems.get(productId);
-                    inventoryService.returnStockForBill(product, qtyToReturn, billId, admin,
-                            "Bill edit - item removed from Bill #" + bill.getBillNumber());
+                            .orElseThrow(() ->
+                                    new ResourceNotFoundException(
+                                            "Product",
+                                            productId
+                                    ));
+
+                    inventoryService.returnStockForBill(
+                            product,
+                            oldQty,
+                            billId,
+                            admin,
+                            "Bill edit - item removed from Bill #"
+                                    + bill.getBillNumber()
+                    );
                 }
             }
 
-            // Items added or quantity changed
+            /*
+             * ========================================================
+             * 2. ADDED / REMAINING PRODUCTS
+             *
+             * Compare old quantity with new quantity.
+             *
+             * new > old:
+             *      deduct difference
+             *
+             * new < old:
+             *      return difference
+             *
+             * new == old:
+             *      no inventory movement
+             * ========================================================
+             */
+
             List<BillItem> newBillItems = new ArrayList<>();
-            for (Map.Entry<Long, BillCreateRequest.BillItemRequest> entry : newItems.entrySet()) {
+
+            for (Map.Entry<Long, BillCreateRequest.BillItemRequest> entry :
+                    requestedItems.entrySet()) {
+
                 Long productId = entry.getKey();
                 BillCreateRequest.BillItemRequest itemReq = entry.getValue();
 
                 Product product = productRepository.findById(productId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Product",
+                                        productId
+                                ));
 
-                int oldQty = currentItems.getOrDefault(productId, 0);
+                int oldQty = currentQuantities.getOrDefault(
+                        productId,
+                        0
+                );
+
                 int newQty = itemReq.getQuantity();
-                int diff = newQty - oldQty;
 
-                if (diff > 0) {
-                    // Need to deduct more stock
-                    if (product.getStockQuantity() < diff) {
-                        throw new InsufficientStockException(product.getName(), diff, product.getStockQuantity());
-                    }
-                    inventoryService.deductStockForBill(product, diff, billId, admin);
-                } else if (diff < 0) {
-                    // Return excess stock
-                    inventoryService.returnStockForBill(product, Math.abs(diff), billId, admin,
-                            "Bill edit - quantity reduced on Bill #" + bill.getBillNumber());
+                int quantityDifference = newQty - oldQty;
+
+                /*
+                 * ----------------------------------------------------
+                 * Quantity increased
+                 * ----------------------------------------------------
+                 */
+                if (quantityDifference > 0) {
+
+                    inventoryService.deductStockForBill(
+                            product,
+                            quantityDifference,
+                            billId,
+                            admin
+                    );
                 }
 
-                Product.DiscountType discType = itemReq.getDiscountType() != null
-                        ? itemReq.getDiscountType() : product.getDiscountType();
-                BigDecimal discValue = itemReq.getDiscountValue() != null
-                        ? itemReq.getDiscountValue() : product.getDiscountValue();
+                /*
+                 * ----------------------------------------------------
+                 * Quantity decreased
+                 * ----------------------------------------------------
+                 */
+                else if (quantityDifference < 0) {
 
-                BigDecimal unitPriceAfterDiscount = computeEffectivePrice(product.getSellingPrice(), discType, discValue);
-                BigDecimal lineDiscountAmt = product.getSellingPrice().subtract(unitPriceAfterDiscount)
-                        .multiply(BigDecimal.valueOf(newQty)).setScale(2, RoundingMode.HALF_UP);
-                BigDecimal lineTotal = unitPriceAfterDiscount.multiply(BigDecimal.valueOf(newQty))
-                        .setScale(2, RoundingMode.HALF_UP);
+                    inventoryService.returnStockForBill(
+                            product,
+                            Math.abs(quantityDifference),
+                            billId,
+                            admin,
+                            "Bill edit - quantity reduced on Bill #"
+                                    + bill.getBillNumber()
+                    );
+                }
 
+                /*
+                 * ----------------------------------------------------
+                 * Discount
+                 * ----------------------------------------------------
+                 */
+
+                Product.DiscountType discountType =
+                        itemReq.getDiscountType() != null
+                                ? itemReq.getDiscountType()
+                                : product.getDiscountType();
+
+                BigDecimal discountValue =
+                        itemReq.getDiscountValue() != null
+                                ? itemReq.getDiscountValue()
+                                : product.getDiscountValue();
+
+                /*
+                 * Defensive defaults.
+                 */
+                if (discountType == null) {
+                    discountType = Product.DiscountType.PERCENTAGE;
+                }
+
+                if (discountValue == null) {
+                    discountValue = BigDecimal.ZERO;
+                }
+
+                /*
+                 * Prevent invalid negative discounts.
+                 */
+                discountValue = discountValue.max(BigDecimal.ZERO);
+
+                /*
+                 * Compute discounted unit price.
+                 */
+                BigDecimal unitPriceAfterDiscount =
+                        computeEffectivePrice(
+                                product.getSellingPrice(),
+                                discountType,
+                                discountValue
+                        );
+
+                /*
+                 * Discount cannot make price negative.
+                 */
+                unitPriceAfterDiscount =
+                        unitPriceAfterDiscount.max(BigDecimal.ZERO);
+
+                /*
+                 * Line discount.
+                 */
+                BigDecimal lineDiscountAmount =
+                        product.getSellingPrice()
+                                .subtract(unitPriceAfterDiscount)
+                                .multiply(BigDecimal.valueOf(newQty))
+                                .setScale(
+                                        2,
+                                        RoundingMode.HALF_UP
+                                );
+
+                /*
+                 * Line total.
+                 */
+                BigDecimal lineTotal =
+                        unitPriceAfterDiscount
+                                .multiply(BigDecimal.valueOf(newQty))
+                                .setScale(
+                                        2,
+                                        RoundingMode.HALF_UP
+                                );
+
+                /*
+                 * Build replacement BillItem.
+                 */
                 BillItem newItem = BillItem.builder()
                         .bill(bill)
                         .product(product)
                         .productNameSnapshot(product.getName())
                         .sellingPriceSnapshot(product.getSellingPrice())
                         .purchaseCostSnapshot(product.getPurchaseCost())
-                        .discountValueSnapshot(discValue)
-                        .discountTypeSnapshot(discType)
+                        .discountValueSnapshot(discountValue)
+                        .discountTypeSnapshot(discountType)
                         .quantity(newQty)
-                        .lineDiscountAmount(lineDiscountAmt)
+                        .lineDiscountAmount(lineDiscountAmount)
                         .totalPrice(lineTotal)
                         .build();
 
                 newBillItems.add(newItem);
             }
 
+            /*
+             * Replace old bill items.
+             *
+             * This assumes your Bill.items mapping has:
+             *
+             * orphanRemoval = true
+             *
+             * and cascade = CascadeType.ALL
+             */
             bill.getItems().clear();
             bill.getItems().addAll(newBillItems);
 
-            // Recalculate totals
+            /*
+             * ========================================================
+             * RECALCULATE BILL TOTALS
+             * ========================================================
+             */
+
             BigDecimal subtotal = newBillItems.stream()
-                    .map(item -> item.getSellingPriceSnapshot()
-                            .multiply(BigDecimal.valueOf(item.getQuantity())))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add)
-                    .setScale(2, RoundingMode.HALF_UP);
+                    .map(item ->
+                            item.getSellingPriceSnapshot()
+                                    .multiply(
+                                            BigDecimal.valueOf(
+                                                    item.getQuantity()
+                                            )
+                                    )
+                    )
+                    .reduce(
+                            BigDecimal.ZERO,
+                            BigDecimal::add
+                    )
+                    .setScale(
+                            2,
+                            RoundingMode.HALF_UP
+                    );
+
             BigDecimal totalDiscount = newBillItems.stream()
                     .map(BillItem::getLineDiscountAmount)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
+                    .reduce(
+                            BigDecimal.ZERO,
+                            BigDecimal::add
+                    )
+                    .setScale(
+                            2,
+                            RoundingMode.HALF_UP
+                    );
+
             BigDecimal finalTotal = newBillItems.stream()
                     .map(BillItem::getTotalPrice)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
+                    .reduce(
+                            BigDecimal.ZERO,
+                            BigDecimal::add
+                    )
+                    .setScale(
+                            2,
+                            RoundingMode.HALF_UP
+                    );
 
             bill.setSubtotal(subtotal);
             bill.setTotalDiscount(totalDiscount);
             bill.setFinalTotal(finalTotal);
         }
 
-        // Update other fields
-        if (req.getCustomerName() != null) bill.setCustomerName(req.getCustomerName());
-        if (req.getCustomerPhone() != null) bill.setCustomerPhone(req.getCustomerPhone());
-        if (req.getPaymentMethod() != null) bill.setPaymentMethod(req.getPaymentMethod());
-        if (req.getPaymentStatus() != null) bill.setPaymentStatus(req.getPaymentStatus());
-        if (req.getTransactionRef() != null) bill.setTransactionRef(req.getTransactionRef());
-        if (req.getBillStatus() != null) bill.setBillStatus(req.getBillStatus());
-        if (req.getNotes() != null) bill.setNotes(req.getNotes());
+        /*
+         * ============================================================
+         * UPDATE OTHER BILL FIELDS
+         * ============================================================
+         */
 
+        if (req.getCustomerName() != null) {
+            bill.setCustomerName(req.getCustomerName());
+        }
+
+        if (req.getCustomerPhone() != null) {
+            bill.setCustomerPhone(req.getCustomerPhone());
+        }
+
+        if (req.getPaymentMethod() != null) {
+            bill.setPaymentMethod(req.getPaymentMethod());
+        }
+
+        if (req.getPaymentStatus() != null) {
+            bill.setPaymentStatus(req.getPaymentStatus());
+        }
+
+        if (req.getTransactionRef() != null) {
+            bill.setTransactionRef(req.getTransactionRef());
+        }
+
+        if (req.getBillStatus() != null) {
+            bill.setBillStatus(req.getBillStatus());
+        }
+
+        if (req.getNotes() != null) {
+            bill.setNotes(req.getNotes());
+        }
+
+        /*
+         * Save.
+         */
         bill = billRepository.save(bill);
-        log.info("Bill updated: {}", bill.getBillNumber());
+
+        log.info(
+                "Bill updated: billId={}, billNumber={}",
+                bill.getId(),
+                bill.getBillNumber()
+        );
+
         return toResponse(bill, true);
     }
 
@@ -612,6 +878,16 @@ public class BillService {
                         .build())
                 .toList();
 
+        ZoneId indiaZone = ZoneId.of("Asia/Kolkata");
+
+        LocalDateTime whatsappSentAt = bill.getWhatsappSentAt() != null
+                ? bill.getWhatsappSentAt().atZone(indiaZone).toLocalDateTime()
+                : null;
+        LocalDateTime createdAt =
+                bill.getCreatedAt().atZone(indiaZone).toLocalDateTime();
+        LocalDateTime updatedAt =
+                bill.getUpdatedAt().atZone(indiaZone).toLocalDateTime();
+
         return BillResponse.builder()
                 .id(bill.getId())
                 .billNumber(bill.getBillNumber())
@@ -627,10 +903,10 @@ public class BillService {
                 .billStatus(bill.getBillStatus())
                 .purchaseRequestId(bill.getPurchaseRequest() != null ? bill.getPurchaseRequest().getId() : null)
                 .notes(bill.getNotes())
-                .whatsappSentAt(bill.getWhatsappSentAt())
+                .whatsappSentAt(whatsappSentAt)
                 .items(items)
-                .createdAt(bill.getCreatedAt())
-                .updatedAt(bill.getUpdatedAt())
+                .createdAt(createdAt)
+                .updatedAt(updatedAt)
                 .build();
     }
 }

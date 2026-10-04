@@ -163,15 +163,34 @@ export default function Navbar() {
           transform: 'translateX(-50%)',
           textAlign: 'center',
           zIndex: 2,
+          whiteSpace: 'nowrap',
         }}
       >
         <Link
           href="/"
           style={{
             textDecoration: 'none',
-            display: 'inline-block',
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexWrap: 'nowrap',
+            gap: '7px',
+            whiteSpace: 'nowrap',
           }}
         >
+          <img
+            src="/afino-logo-only.svg"
+            alt=""
+            style={{
+              width: '22px',
+              height: '22px',
+              objectFit: 'contain',
+              display: 'block',
+              flexShrink: 0,
+            }}
+          />
+
           <span
             style={{
               fontFamily: 'var(--font-display)',
@@ -181,6 +200,8 @@ export default function Navbar() {
               color: 'var(--text-primary)',
               textTransform: 'uppercase',
               whiteSpace: 'nowrap',
+              display: 'block',
+              flexShrink: 0,
             }}
           >
             AFINO
@@ -963,11 +984,20 @@ export default function Navbar() {
 
         .navbar-brand {
           top: 22px !important;
+          white-space: nowrap !important;
         }
 
         .navbar-actions {
           right: 12px !important;
           top: 16px !important;
+        }
+
+        .navbar-brand a {
+          display: flex !important;
+          flex-direction: row !important;
+          flex-wrap: nowrap !important;
+          align-items: center !important;
+          white-space: nowrap !important;
         }
       }
 

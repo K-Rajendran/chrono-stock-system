@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
@@ -71,7 +72,7 @@ public class WhatsAppService {
     private String ownerName;
 
     private static final DateTimeFormatter BILL_DATE_FORMAT =
-            DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm").withZone(ZoneOffset.UTC);
+            DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm").withZone(ZoneId.of("Asia/Kolkata"));
 
     // ─────────────────────────────────────────────────────────
     // Purchase Request → Owner
@@ -146,12 +147,12 @@ public class WhatsAppService {
     private String buildPurchaseRequestMessage(PurchaseRequest pr) {
         StringBuilder sb = new StringBuilder();
         sb.append(EMOJI_CLOCK).append(" *AFINO — New Purchase Request*\n\n");
-        sb.append("━━━━━━━━━━━━━━━━━━━━━━━━\n");
+        sb.append("━━━━━━━━━━━━━━━━━━━━\n");
         sb.append(EMOJI_CLIPBOARD).append(" *Reference:* ").append(pr.getReferenceId()).append("\n");
         sb.append(EMOJI_SILHOUETTE).append(" *Customer:* ").append(pr.getCustomerName()).append("\n");
         sb.append(EMOJI_PHONE).append(" *Phone:* ").append(pr.getCustomerPhone()).append("\n");
-        sb.append(EMOJI_CALENDAR).append(" *Date:* ").append(BILL_DATE_FORMAT.format(pr.getCreatedAt())).append(" UTC\n");
-        sb.append("━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
+        sb.append(EMOJI_CALENDAR).append(" *Date:* ").append(BILL_DATE_FORMAT.format(pr.getCreatedAt())).append(" IST\n");
+        sb.append("━━━━━━━━━━━━━━━━━━━━\n\n");
         sb.append("*Items:*\n");
 
         for (var item : pr.getItems()) {
@@ -160,7 +161,7 @@ public class WhatsAppService {
                     .append(" = ₹").append(item.getLineTotal()).append("\n");
         }
 
-        sb.append("\n━━━━━━━━━━━━━━━━━━━━━━━━\n");
+        sb.append("\n━━━━━━━━━━━━━━━━━━\n");
         if (pr.getTotalDiscount() != null && pr.getTotalDiscount().compareTo(java.math.BigDecimal.ZERO) > 0) {
             sb.append(EMOJI_MONEYBAG).append(" *Discount:* -₹").append(pr.getTotalDiscount()).append("\n");
         }
@@ -172,11 +173,11 @@ public class WhatsAppService {
     private String buildBillMessage(Bill bill) {
         StringBuilder sb = new StringBuilder();
         sb.append(EMOJI_CLOCK).append(" *AFINO — Your Invoice*\n");
-        sb.append("━━━━━━━━━━━━━━━━━━━━━━━━\n");
+        sb.append("━━━━━━━━━━━━━━━━━━━━\n");
         sb.append(EMOJI_CLIPBOARD).append(" *Bill No:* ").append(bill.getBillNumber()).append("\n");
         sb.append(EMOJI_SILHOUETTE).append(" *Name:* ").append(bill.getCustomerName()).append("\n");
-        sb.append(EMOJI_CALENDAR).append(" *Date:* ").append(BILL_DATE_FORMAT.format(bill.getCreatedAt())).append(" UTC\n");
-        sb.append("━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
+        sb.append(EMOJI_CALENDAR).append(" *Date:* ").append(BILL_DATE_FORMAT.format(bill.getCreatedAt())).append(" IST\n");
+        sb.append("━━━━━━━━━━━━━━━━━━━━\n\n");
         sb.append("*Items:*\n");
 
         for (var item : bill.getItems()) {
@@ -185,7 +186,7 @@ public class WhatsAppService {
                     .append(" = ₹").append(item.getTotalPrice()).append("\n");
         }
 
-        sb.append("\n━━━━━━━━━━━━━━━━━━━━━━━━\n");
+        sb.append("\n━━━━━━━━━━━━━━━━━━\n");
         if (bill.getTotalDiscount() != null && bill.getTotalDiscount().compareTo(java.math.BigDecimal.ZERO) > 0) {
             sb.append(EMOJI_MONEYBAG).append(" *Discount:* -₹").append(bill.getTotalDiscount()).append("\n");
         }
