@@ -246,19 +246,20 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
             {FIELD(
               'Stock Quantity',
               'stockQuantity',
-              <div
+              <input
+                type="number"
+                min="0"
                 style={{
                   ...INPUT_STYLE,
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: 'var(--bg-elevated)',
-                  color: 'var(--text-secondary)',
-                  cursor: 'not-allowed',
-                  opacity: 0.8,
+                  background: mode === 'new' ? 'var(--bg-elevated)' : 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  cursor: mode === 'new' ? 'text' : 'not-allowed',
+                  opacity: mode === 'new' ? 1 : 0.8,
                 }}
-              >
-                {form.stockQuantity}
-              </div>
+                value={form.stockQuantity}
+                onChange={e => set('stockQuantity', e.target.value)}
+                disabled={mode === 'edit'}
+              />
             )}
             {FIELD('Low Stock Threshold', 'lowStockThreshold',
               <input type="number" min="0" style={INPUT_STYLE} value={form.lowStockThreshold} onChange={e => set('lowStockThreshold', e.target.value)} />

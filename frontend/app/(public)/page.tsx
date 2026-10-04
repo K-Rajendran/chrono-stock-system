@@ -534,7 +534,7 @@ export default function HomePage() {
             >
               <FeatureBadge icon="✦" label="Premium" sub="Craftsmanship" />
               {/* <FeatureBadge icon="🛡" label="Warranty" sub="1 Year" /> */}
-              <FeatureBadge icon="💎" label="Authentic" sub="Certified" />
+              <FeatureBadge icon="💎" label="Trusted" sub="Curated" />
             </div>
           </div>
         </div>
@@ -899,7 +899,7 @@ export default function HomePage() {
             }}
           >
             {[
-              { icon: '🏅', title: 'Authentic Pieces', desc: 'Every watch verified and certified' },
+              { icon: '🏅', title: 'Credibility-Focused', desc: 'Curated with Trust' },
               { icon: '📦', title: 'Secure Packaging', desc: 'Premium presentation on delivery' },
               // { icon: '🔧', title: '1 Year Warranty', desc: 'Service & repair coverage' },
               { icon: '💬', title: 'WhatsApp Support', desc: 'Direct line to our experts' },

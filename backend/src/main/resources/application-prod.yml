@@ -106,6 +106,9 @@ app:
 # Actuator / Health
 # ============================================================
 management:
+  health:
+    db:
+      enabled: false
   endpoints:
     web:
       exposure:

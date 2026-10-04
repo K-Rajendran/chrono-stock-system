@@ -305,7 +305,7 @@ export default function ContactPage() {
         {/* Contact info */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {[
-            { icon: '📧', title: 'Email', value: 'mhdnr148@gmail.com' },
+            { icon: '📧', title: 'Email', value: 'afinoluxe@gmail.com' },
             { icon: '📱', title: 'WhatsApp', value: 'Available on request' },
             { icon: '🕐', title: 'Hours', value: 'Mon–Sun · 10am–9pm IST' },
             { icon: '📍', title: 'Location', value: 'India' },

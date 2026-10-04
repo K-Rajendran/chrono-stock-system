@@ -173,7 +173,7 @@ export default function Footer() {
           </h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {[
-              { icon: '📧', label: 'mhdnr148@gmail.com' },
+              { icon: '📧', label: 'afinoluxe@gmail.com' },
               { icon: '📱', label: 'WhatsApp Available' },
               { icon: '🕐', label: 'Mon–Sun · 10am–9pm IST' },
             ].map(({ icon, label }) => (
