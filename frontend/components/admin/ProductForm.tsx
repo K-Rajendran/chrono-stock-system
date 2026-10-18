@@ -140,8 +140,25 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message ?? 'Failed to save product');
+        const responseText = await res.text();
+
+        let message = 'Failed to save product';
+
+        try {
+          const data = JSON.parse(responseText);
+          message = data.message ?? data.error ?? message;
+        } catch {
+          if (responseText) {
+            message = responseText;
+          }
+        }
+
+        console.error('Product save failed:', {
+          status: res.status,
+          response: responseText,
+        });
+
+        throw new Error(message);
       }
 
       router.push('/admin/products');
@@ -249,15 +266,16 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
               <input
                 type="number"
                 min="0"
+                step="1"
                 style={{
                   ...INPUT_STYLE,
-                  background: mode === 'new' ? 'var(--bg-elevated)' : 'var(--bg-elevated)',
-                  color: 'var(--text-primary)',
-                  cursor: mode === 'new' ? 'text' : 'not-allowed',
-                  opacity: mode === 'new' ? 1 : 0.8,
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  cursor: mode === 'edit' ? 'not-allowed' : 'text',
+                  opacity: mode === 'edit' ? 0.8 : 1,
                 }}
                 value={form.stockQuantity}
-                onChange={e => set('stockQuantity', e.target.value)}
+                onChange={(e) => set('stockQuantity', e.target.value)}
                 disabled={mode === 'edit'}
               />
             )}
