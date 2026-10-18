@@ -123,7 +123,7 @@ management:
 # ============================================================
 logging:
   level:
-    root: ${LOG_LEVEL:INFO}
+    root: ${LOG_LEVEL:DEBUG}
     com.soulxtime: INFO
     org.springframework.security: WARN
     org.hibernate.SQL: WARN

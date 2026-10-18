@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -219,11 +220,12 @@ public class ProductService {
 
     @Transactional
     public ProductAdminResponse createProduct(ProductCreateRequest req) {
+        String normalizedSku = req.getSku().trim().toUpperCase(Locale.ROOT);
 
-        if (productRepository.findBySkuAndActiveTrue(req.getSku()).isPresent()) {
+        if (productRepository.findBySkuAndActiveTrue(normalizedSku).isPresent()) {
             throw new BusinessException(
                     "SKU_TAKEN",
-                    "A product with this SKU already exists: " + req.getSku()
+                    "A product with this SKU already exists: " + normalizedSku
             );
         }
 
@@ -238,7 +240,7 @@ public class ProductService {
                 : null;
 
         Product product = Product.builder()
-                .sku(req.getSku().toUpperCase().trim())
+                .sku(normalizedSku)
                 .name(req.getName())
                 .brand(req.getBrand())
                 .category(category)

@@ -119,8 +119,15 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
     setError(null);
     try {
       const token = localStorage.getItem('sxt_token');
+      const { specifications: _specifications, ...productFields } = form;
       const body = {
-        ...form,
+        ...productFields,
+        categoryId: form.categoryId ? Number(form.categoryId) : null,
+        discountType: form.discountType === 'NONE'
+          ? null
+          : form.discountType === 'FIXED'
+            ? 'FIXED_AMOUNT'
+            : form.discountType,
         purchaseCost: Number(form.purchaseCost),
         sellingPrice: Number(form.sellingPrice),
         stockQuantity: Number(form.stockQuantity),
