@@ -41,8 +41,8 @@ VALUES
     ('Luxury', 'luxury', 'Handcrafted timepieces for the discerning collector.', 1, TRUE),
     ('Sport', 'sport', 'Built for performance, designed for style.', 2, TRUE),
     ('Classic', 'classic', 'Timeless elegance that transcends trends.', 3, TRUE),
-    ('Limited Edition', 'limited-edition', 'Rare pieces for extraordinary moments.', 4, TRUE),
-    ('Casual', 'casual', 'Features versatile and durable timepieces for daily wear.', 5, TRUE);
+    ('Smart', 'smart', 'Where tradition meets modern intelligence.', 4, TRUE),
+    ('Limited Edition', 'limited-edition', 'Rare pieces for extraordinary moments.', 5, TRUE);
 
 -- ─────────────────────────────────────────────────────────────
 -- PRODUCTS — Watch Collection
