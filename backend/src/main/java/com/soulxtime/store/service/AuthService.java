@@ -78,7 +78,7 @@ public class AuthService {
         return buildAuthResponse(user);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public AuthResponse refreshToken(String refreshTokenValue) {
         String tokenHash = hashToken(refreshTokenValue);
 
@@ -93,6 +93,11 @@ public class AuthService {
 
         User user = stored.getUser();
 
+        if (!user.isActive()) {
+            refreshTokenRepository.revokeAllUserTokens(user.getId());
+            throw new BusinessException("ACCOUNT_DISABLED", "Your account has been deactivated");
+        }
+
         // Rotate refresh token (invalidate old, issue new)
         stored.setRevoked(true);
         refreshTokenRepository.save(stored);
@@ -104,6 +109,13 @@ public class AuthService {
     public void logout(Long userId) {
         refreshTokenRepository.revokeAllUserTokens(userId);
         log.info("User {} logged out, all refresh tokens revoked", userId);
+    }
+
+    @Transactional
+    public void logout(String email) {
+        User user = userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "User not found"));
+        logout(user.getId());
     }
 
     // ─────────────────────────────────────────────────────────

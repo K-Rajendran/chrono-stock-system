@@ -14,8 +14,8 @@ import java.util.function.Function;
 
 /**
  * JWT Service — generates and validates access tokens.
- * Refresh tokens are stored in the database (RefreshToken entity) and sent
- * as HTTP-only cookies for security. Access tokens are short-lived (15 min).
+ * Refresh tokens are stored hashed in the database by AuthService. Access
+ * tokens are short-lived (15 min in production).
  */
 @Service
 @Slf4j

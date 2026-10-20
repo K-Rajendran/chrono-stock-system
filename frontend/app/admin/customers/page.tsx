@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface Customer {
   id: string;
@@ -35,7 +36,7 @@ export default function AdminCustomersPage() {
       const token = localStorage.getItem('sxt_token');
       const params = new URLSearchParams({ page: String(currentPage), size: '15', sort: 'createdAt,desc' });
       if (search) params.set('search', search);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/customers?${params}`, {
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/customers?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();

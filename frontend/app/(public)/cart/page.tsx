@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface CartItem {
   id: string;
@@ -63,13 +64,13 @@ export default function CartPage() {
     setSubmitting(true);
     try {
       const user = JSON.parse(userStr);
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-      const itemResponses = await Promise.all(items.map(i => fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart/items`, {
+      await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      const itemResponses = await Promise.all(items.map(i => authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart/items`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ productId: Number(i.id), quantity: Number(i.quantity) || 1 }),
       })));
       if (itemResponses.some(response => !response.ok)) throw new Error('Could not prepare your cart.');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchase-requests/from-cart`, {
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchase-requests/from-cart`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -81,7 +82,7 @@ export default function CartPage() {
 
       const data = await res.json();
 
-      const whatsappRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchase-requests/${data.id}/send-whatsapp`, {
+      const whatsappRes = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchase-requests/${data.id}/send-whatsapp`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` },
       });
       const whatsapp = whatsappRes.ok ? await whatsappRes.json() : null;

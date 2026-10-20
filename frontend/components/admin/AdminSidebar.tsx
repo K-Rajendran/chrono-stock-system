@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { authenticatedFetch, clearAuthSession } from '@/lib/auth';
 
 const NAV_ITEMS = [
   {
@@ -79,9 +80,12 @@ export default function AdminSidebar({ mobileOpen, onClose }: AdminSidebarProps)
   const pathname = usePathname();
   const router = useRouter();
 
-  const handleLogout = () => {
-    localStorage.removeItem('sxt_token');
-    localStorage.removeItem('sxt_user');
+  const handleLogout = async () => {
+    try {
+      await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, { method: 'POST' });
+    } finally {
+      clearAuthSession();
+    }
     router.push('/login');
   };
 

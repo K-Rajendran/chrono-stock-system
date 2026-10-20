@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { authenticatedFetch, clearAuthSession } from '@/lib/auth';
 
 const NAV_LINKS = [
   { href: '/', label: 'Home', icon: '⌂' },
@@ -76,22 +77,6 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    const redirectIfExpired = () => {
-      const token = localStorage.getItem('sxt_token');
-      if (!token) return;
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-        if (payload.exp && payload.exp * 1000 <= Date.now()) {
-          localStorage.removeItem('sxt_token'); localStorage.removeItem('sxt_user');
-          window.location.assign('/login');
-        }
-      } catch { /* the API remains the authority for malformed tokens */ }
-    };
-    redirectIfExpired(); const timer = window.setInterval(redirectIfExpired, 30000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
@@ -109,12 +94,17 @@ export default function Navbar() {
 
   useEffect(() => { setMobileOpen(false); setUserMenuOpen(false); }, [pathname]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('sxt_user');
-    localStorage.removeItem('sxt_token');
+  const handleLogout = async () => {
+    let sessionStillValid = true;
+    try {
+      await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, { method: 'POST' });
+      sessionStillValid = Boolean(localStorage.getItem('sxt_token'));
+    } finally {
+      clearAuthSession();
+    }
     setUser(null);
     setUserMenuOpen(false);
-    router.push('/');
+    if (sessionStillValid) router.push('/');
   };
 
   const isActive = (href: string) => {

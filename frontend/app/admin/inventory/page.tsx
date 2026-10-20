@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface Product {
   id: string;
@@ -32,7 +33,7 @@ export default function AdminInventoryPage() {
       const params = new URLSearchParams({ page: String(currentPage), size: '15', sort: 'name,asc' });
       if (search) params.set('search', search);
       if (statusFilter) params.set('stockStatus', statusFilter);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products?${params}`, {
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();

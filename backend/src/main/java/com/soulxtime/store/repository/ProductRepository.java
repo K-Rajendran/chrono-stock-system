@@ -18,6 +18,8 @@ public interface ProductRepository
 
     Optional<Product> findBySkuAndActiveTrue(String sku);
 
+    boolean existsBySkuIgnoreCase(String sku);
+
     @Query("SELECT p FROM Product p WHERE p.active = true AND p.stockStatus = 'LOW_STOCK'")
     List<Product> findLowStockProducts();
 

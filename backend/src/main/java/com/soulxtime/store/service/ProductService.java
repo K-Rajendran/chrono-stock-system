@@ -222,7 +222,7 @@ public class ProductService {
     public ProductAdminResponse createProduct(ProductCreateRequest req) {
         String normalizedSku = req.getSku().trim().toUpperCase(Locale.ROOT);
 
-        if (productRepository.findBySkuAndActiveTrue(normalizedSku).isPresent()) {
+        if (productRepository.existsBySkuIgnoreCase(normalizedSku)) {
             throw new BusinessException(
                     "SKU_TAKEN",
                     "A product with this SKU already exists: " + normalizedSku
@@ -422,7 +422,7 @@ public class ProductService {
                                 id
                         )
                 );
-
+        //Soft deletion: other bills, PRs, records may refer to this old product
         product.setActive(false);
 
         productRepository.save(product);

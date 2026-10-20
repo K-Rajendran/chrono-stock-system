@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { saveTokens } from '@/lib/auth';
 
 const INPUT: React.CSSProperties = {
   width: '100%',
@@ -241,7 +242,7 @@ export default function RegisterPage() {
 
       const userName = data.fullName || form.name || 'User';
 
-      localStorage.setItem('sxt_token', data.accessToken);
+      saveTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
 
       localStorage.setItem(
         'sxt_user',

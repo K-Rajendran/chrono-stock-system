@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface Bill {
   id: string;
@@ -41,7 +42,7 @@ export default function AdminBillsPage() {
       if (search) params.set('search', search);
       if (statusFilter) params.set('paymentStatus', statusFilter);
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills?${params}`, {
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();

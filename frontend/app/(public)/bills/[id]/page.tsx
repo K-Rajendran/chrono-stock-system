@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface BillItem {
   id: string;
@@ -69,7 +70,7 @@ export default function BillDetailPage() {
       const token = localStorage.getItem('sxt_token');
       if (!token) { router.push('/login'); return; }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customer/bills/${id}`, {
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customer/bills/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

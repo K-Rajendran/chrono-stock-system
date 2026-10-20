@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface PurchaseRequestItem {
   id: string;
@@ -75,7 +76,7 @@ export default function PurchaseRequestDetailPage() {
     const token = localStorage.getItem('sxt_token');
     if (!token) { router.push('/login'); return; }
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchase-requests/${id}`, {
+    authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchase-requests/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => {

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface Product {
   id: string;
@@ -72,8 +73,8 @@ export default function InventoryDetailPage() {
       const base = process.env.NEXT_PUBLIC_API_URL;
 
       const [pRes, tRes] = await Promise.all([
-        fetch(`${base}/api/admin/products/${id}`, { headers }),
-        fetch(`${base}/api/admin/inventory/${id}/history?page=0&size=20`, { headers }),
+        authenticatedFetch(`${base}/api/admin/products/${id}`, { headers }),
+        authenticatedFetch(`${base}/api/admin/inventory/${id}/history?page=0&size=20`, { headers }),
       ]);
 
       if (!pRes.ok) throw new Error('product');
@@ -99,7 +100,7 @@ export default function InventoryDetailPage() {
     setAdjusting(true);
     try {
       const token = localStorage.getItem('sxt_token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/inventory/${id}/adjust`, {
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/inventory/${id}/adjust`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ type: form.type, quantity: qty, reason: form.reason }),

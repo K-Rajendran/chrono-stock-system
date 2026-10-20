@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import ImageUpload from './ImageUpload';
 import MultiImageUpload from './MultiImageUpload';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface ProductFormData {
   name: string;
@@ -15,7 +16,7 @@ interface ProductFormData {
   sellingPrice: string;
   stockQuantity: string;
   lowStockThreshold: string;
-  discountType: 'NONE' | 'PERCENTAGE' | 'FIXED';
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT';
   discountValue: string;
   active: boolean;
   primaryImageUrl: string;
@@ -60,8 +61,8 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
   const [form, setForm] = useState<ProductFormData>({
     name: '', sku: '', brand: '', categoryId: '', description: '',
     purchaseCost: '', sellingPrice: '',
-    stockQuantity: '0', lowStockThreshold: '5',
-    discountType: 'NONE', discountValue: '0',
+    stockQuantity: '0', lowStockThreshold: '2',
+    discountType: 'PERCENTAGE', discountValue: '0',
     active: true, primaryImageUrl: '',
     specifications: {},
   });
@@ -70,24 +71,24 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
 
   useEffect(() => {
     const token = localStorage.getItem('sxt_token');
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/categories`, { headers: { Authorization: `Bearer ${token}` } })
+    authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/categories`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(setCategories).catch(() => {});
 
     if (mode === 'edit' && productId) {
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products/${productId}`, { headers: { Authorization: `Bearer ${token}` } })
+      authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products/${productId}`, { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json())
         .then((p) => {
           setForm({
             name: p.name ?? '',
             sku: p.sku ?? '',
             brand: p.brand ?? '',
-            categoryId: p.categoryId ?? '',
+            categoryId: p.categoryId != null ? String(p.categoryId) : '',
             description: p.description ?? '',
             purchaseCost: String(p.purchaseCost ?? ''),
             sellingPrice: String(p.sellingPrice ?? ''),
             stockQuantity: String(p.stockQuantity ?? 0),
-            lowStockThreshold: String(p.lowStockThreshold ?? 5),
-            discountType: p.discountType ?? 'NONE',
+            lowStockThreshold: String(p.lowStockThreshold ?? 2),
+            discountType: p.discountType ?? 'PERCENTAGE',
             discountValue: String(p.discountValue ?? 0),
             active: p.active ?? true,
             primaryImageUrl: p.primaryImageUrl ?? '',
@@ -106,9 +107,36 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
     const e: typeof errors = {};
     if (!form.name.trim()) e.name = 'Name is required';
     if (!form.sku.trim()) e.sku = 'SKU is required';
-    if (!form.purchaseCost || isNaN(Number(form.purchaseCost)) || Number(form.purchaseCost) < 0) e.purchaseCost = 'Valid cost required';
-    if (!form.sellingPrice || isNaN(Number(form.sellingPrice)) || Number(form.sellingPrice) <= 0) e.sellingPrice = 'Valid price required';
-    if (isNaN(Number(form.stockQuantity)) || Number(form.stockQuantity) < 0) e.stockQuantity = 'Valid stock required';
+
+    const cost = Number(form.purchaseCost);
+    if (form.purchaseCost.trim() === '' || !Number.isFinite(cost) || cost < 0) {
+      e.purchaseCost = 'Enter a valid non-negative cost';
+    }
+
+    const price = Number(form.sellingPrice);
+    if (form.sellingPrice.trim() === '' || !Number.isFinite(price) || price <= 0) {
+      e.sellingPrice = 'Selling price must be greater than zero';
+    }
+
+    const stock = Number(form.stockQuantity);
+    if (!Number.isInteger(stock) || stock < 0 ) {
+      e.stockQuantity = 'Stock must be a non-negative integer';
+    }
+
+    const threshold = Number(form.lowStockThreshold);
+    if (form.lowStockThreshold.trim() === '' || !Number.isInteger(threshold) || threshold < 1) {
+      e.lowStockThreshold = 'Threshold must be at least 1';
+    }
+
+    const discount = Number(form.discountValue);
+    if (form.discountValue.trim() === '' || !Number.isFinite(discount) || discount < 0) {
+      e.discountValue = 'Discount must be non-negative';
+    } else if (form.discountType === 'PERCENTAGE' && discount > 100) {
+      e.discountValue = 'Percentage cannot exceed 100';
+    } else if (form.discountType === 'FIXED_AMOUNT' && Number.isFinite(price) && discount > price) {
+      e.discountValue = 'Discount cannot exceed selling price';
+    }
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -123,15 +151,14 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
       const body = {
         ...productFields,
         categoryId: form.categoryId ? Number(form.categoryId) : null,
-        discountType: form.discountType === 'NONE'
-          ? null
-          : form.discountType === 'FIXED'
-            ? 'FIXED_AMOUNT'
-            : form.discountType,
         purchaseCost: Number(form.purchaseCost),
         sellingPrice: Number(form.sellingPrice),
-        stockQuantity: Number(form.stockQuantity),
+        // Stock is managed separately during product editing.
+        ...(mode === 'new'
+          ? { stockQuantity: Number(form.stockQuantity) }
+          : {}),
         lowStockThreshold: Number(form.lowStockThreshold),
+        discountType: form.discountType,
         discountValue: Number(form.discountValue),
       };
 
@@ -140,7 +167,7 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
         : `${process.env.NEXT_PUBLIC_API_URL}/api/admin/products/${productId}`;
       const method = mode === 'new' ? 'POST' : 'PUT';
 
-      const res = await fetch(url, {
+      const res = await authenticatedFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
@@ -218,12 +245,54 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
         <Section title="Basic Information">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             {FIELD('Product Name *', 'name',
-              <><input style={{ ...INPUT_STYLE, borderColor: errors.name ? '#f87171' : 'var(--border)' }} value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Chronograph Elite" />
-              {errors.name && <span style={{ fontSize: '12px', color: '#f87171', marginTop: '4px', display: 'block' }}>{errors.name}</span>}</>
+              <>
+                <input
+                  style={{
+                    ...INPUT_STYLE,
+                    borderColor: errors.name ? '#f87171' : 'var(--border)',
+                  }}
+                  value={form.name}
+                  onChange={e => set('name', e.target.value)}
+                  placeholder="e.g. Chronograph Elite"
+                />
+                {errors.name && (
+                  <span style={{
+                    fontSize: '12px',
+                    color: '#f87171',
+                    marginTop: '4px',
+                    display: 'block',
+                  }}>
+                    {errors.name}
+                  </span>
+                )}
+              </>
             )}
             {FIELD('SKU *', 'sku',
-              <><input style={{ ...INPUT_STYLE, borderColor: errors.sku ? '#f87171' : 'var(--border)', fontFamily: 'monospace' }} value={form.sku} onChange={e => set('sku', e.target.value)} placeholder="e.g. CHR-001" />
-              {errors.sku && <span style={{ fontSize: '12px', color: '#f87171', marginTop: '4px', display: 'block' }}>{errors.sku}</span>}</>
+              <>
+                <input
+                  disabled={mode === 'edit'}
+                  style={{
+                    ...INPUT_STYLE,
+                    borderColor: errors.sku ? '#f87171' : 'var(--border)',
+                    fontFamily: 'monospace',
+                    opacity: mode === 'edit' ? 0.7 : 1,
+                    cursor: mode === 'edit' ? 'not-allowed' : 'text',
+                  }}
+                  value={form.sku}
+                  onChange={e => set('sku', e.target.value)}
+                  placeholder="e.g. CHR-001"
+                />
+                {errors.sku && (
+                  <span style={{
+                    fontSize: '12px',
+                    color: '#f87171',
+                    marginTop: '4px',
+                    display: 'block',
+                  }}>
+                    {errors.sku}
+                  </span>
+                )}
+              </>
             )}
             {FIELD('Brand', 'brand',
               <input style={INPUT_STYLE} value={form.brand} onChange={e => set('brand', e.target.value)} placeholder="e.g. Seiko" />
@@ -244,22 +313,87 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
         <Section title="Pricing">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             {FIELD('Purchase Cost (₹) *', 'purchaseCost',
-              <><input type="number" min="0" style={{ ...INPUT_STYLE, borderColor: errors.purchaseCost ? '#f87171' : 'var(--border)' }} value={form.purchaseCost} onChange={e => set('purchaseCost', e.target.value)} placeholder="0" />
-              {errors.purchaseCost && <span style={{ fontSize: '12px', color: '#f87171', marginTop: '4px', display: 'block' }}>{errors.purchaseCost}</span>}</>
+              <>
+                <input
+                  type="number"
+                  min="0"
+                  style={{
+                    ...INPUT_STYLE,
+                    borderColor: errors.purchaseCost ? '#f87171' : 'var(--border)',
+                  }}
+                  value={form.purchaseCost}
+                  onChange={e => set('purchaseCost', e.target.value)}
+                  placeholder="0"
+                />
+                {errors.purchaseCost && (
+                  <span style={{
+                    fontSize: '12px',
+                    color: '#f87171',
+                    marginTop: '4px',
+                    display: 'block',
+                  }}>
+                    {errors.purchaseCost}
+                  </span>
+                )}
+              </>
             )}
             {FIELD('Selling Price (₹) *', 'sellingPrice',
-              <><input type="number" min="0" style={{ ...INPUT_STYLE, borderColor: errors.sellingPrice ? '#f87171' : 'var(--border)' }} value={form.sellingPrice} onChange={e => set('sellingPrice', e.target.value)} placeholder="0" />
-              {errors.sellingPrice && <span style={{ fontSize: '12px', color: '#f87171', marginTop: '4px', display: 'block' }}>{errors.sellingPrice}</span>}</>
+              <>
+                <input
+                  type="number"
+                  min="0"
+                  style={{
+                    ...INPUT_STYLE,
+                    borderColor: errors.sellingPrice ? '#f87171' : 'var(--border)',
+                  }}
+                  value={form.sellingPrice}
+                  onChange={e => set('sellingPrice', e.target.value)}
+                  placeholder="0"
+                />
+                {errors.sellingPrice && (
+                  <span style={{
+                    fontSize: '12px',
+                    color: '#f87171',
+                    marginTop: '4px',
+                    display: 'block',
+                  }}>
+                    {errors.sellingPrice}
+                  </span>
+                )}
+              </>
             )}
             {FIELD('Discount Type', 'discountType',
               <select style={INPUT_STYLE} value={form.discountType} onChange={e => set('discountType', e.target.value as ProductFormData['discountType'])}>
-                <option value="NONE">No Discount</option>
                 <option value="PERCENTAGE">Percentage (%)</option>
-                <option value="FIXED">Fixed Amount (₹)</option>
+                <option value="FIXED_AMOUNT">Fixed Amount (₹)</option>
               </select>
             )}
-            {form.discountType !== 'NONE' && FIELD(`Discount Value ${form.discountType === 'PERCENTAGE' ? '(%)' : '(₹)'}`, 'discountValue',
-              <input type="number" min="0" style={INPUT_STYLE} value={form.discountValue} onChange={e => set('discountValue', e.target.value)} />
+            {FIELD(
+              `Discount Value ${form.discountType === 'PERCENTAGE' ? '(%)' : '(₹)'}`,
+              'discountValue',
+              <>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  style={{
+                    ...INPUT_STYLE,
+                    borderColor: errors.discountValue ? '#f87171' : 'var(--border)',
+                  }}
+                  value={form.discountValue}
+                  onChange={e => set('discountValue', e.target.value)}
+                />
+                {errors.discountValue && (
+                  <span style={{
+                    fontSize: '12px',
+                    color: '#f87171',
+                    marginTop: '4px',
+                    display: 'block',
+                  }}>
+                    {errors.discountValue}
+                  </span>
+                )}
+              </>
             )}
           </div>
         </Section>
@@ -267,27 +401,66 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
         {/* Inventory */}
         <Section title="Inventory">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            
             {FIELD(
               'Stock Quantity',
               'stockQuantity',
-              <input
-                type="number"
-                min="0"
-                step="1"
-                style={{
-                  ...INPUT_STYLE,
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  cursor: mode === 'edit' ? 'not-allowed' : 'text',
-                  opacity: mode === 'edit' ? 0.8 : 1,
-                }}
-                value={form.stockQuantity}
-                onChange={(e) => set('stockQuantity', e.target.value)}
-                disabled={mode === 'edit'}
-              />
+              <>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  style={{
+                    ...INPUT_STYLE,
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    borderColor: errors.stockQuantity ? '#f87171' : 'var(--border)',
+                    cursor: mode === 'edit' ? 'not-allowed' : 'text',
+                    opacity: mode === 'edit' ? 0.8 : 1,
+                  }}
+                  value={form.stockQuantity}
+                  onChange={e => set('stockQuantity', e.target.value)}
+                  disabled={mode === 'edit'}
+                />
+                {errors.stockQuantity && (
+                  <span style={{
+                    fontSize: '12px',
+                    color: '#f87171',
+                    marginTop: '4px',
+                    display: 'block',
+                  }}>
+                    {errors.stockQuantity}
+                  </span>
+                )}
+              </>
             )}
-            {FIELD('Low Stock Threshold', 'lowStockThreshold',
-              <input type="number" min="0" style={INPUT_STYLE} value={form.lowStockThreshold} onChange={e => set('lowStockThreshold', e.target.value)} />
+            
+            {FIELD(
+              'Low Stock Threshold',
+              'lowStockThreshold',
+              <>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  style={{
+                    ...INPUT_STYLE,
+                    borderColor: errors.lowStockThreshold ? '#f87171' : 'var(--border)',
+                  }}
+                  value={form.lowStockThreshold}
+                  onChange={e => set('lowStockThreshold', e.target.value)}
+                />
+                {errors.lowStockThreshold && (
+                  <span style={{
+                    fontSize: '12px',
+                    color: '#f87171',
+                    marginTop: '4px',
+                    display: 'block',
+                  }}>
+                    {errors.lowStockThreshold}
+                  </span>
+                )}
+              </>
             )}
           </div>
         </Section>

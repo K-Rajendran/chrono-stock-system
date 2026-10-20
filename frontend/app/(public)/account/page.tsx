@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface UserProfile { id: string; fullName: string; email: string; phone: string; role: string; }
 interface PurchaseRequest { id: string; referenceId: string; status: string; totalAmount: number; createdAt: string; items: unknown[]; }
@@ -59,8 +60,8 @@ export default function AccountPage() {
     const base = process.env.NEXT_PUBLIC_API_URL;
 
     Promise.all([
-      fetch(`${base}/api/customer/profile`, { headers }).then(r => { if (r.status === 401) throw new Error('auth'); return r.json(); }),
-      fetch(`${base}/api/purchase-requests?page=0&size=20`, { headers }).then(r => r.json()).catch(() => []),
+      authenticatedFetch(`${base}/api/customer/profile`, { headers }).then(r => { if (r.status === 401) throw new Error('auth'); return r.json(); }),
+      authenticatedFetch(`${base}/api/purchase-requests?page=0&size=20`, { headers }).then(r => r.json()).catch(() => []),
     ])
       .then(([p, reqs]) => {
         setProfile(p);
@@ -75,7 +76,7 @@ export default function AccountPage() {
     setSaving(true);
     try {
       const token = localStorage.getItem('sxt_token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customer/profile`, {
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customer/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ fullName: editForm.name, phone: editForm.phone }),

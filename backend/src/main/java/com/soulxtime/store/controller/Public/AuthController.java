@@ -33,7 +33,7 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(@RequestBody Map<String, String> body) {
-        String refreshToken = body.get("refreshToken");
+        String refreshToken = body != null ? body.get("refreshToken") : null;
         if (refreshToken == null || refreshToken.isBlank()) {
             return ResponseEntity.badRequest().build();
         }
@@ -42,8 +42,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@AuthenticationPrincipal UserDetails userDetails) {
-        // userId is retrieved from the security context; JWT has already been validated
-        // We use email to find the user
+        authService.logout(userDetails.getUsername());
         return ResponseEntity.noContent().build();
     }
 }

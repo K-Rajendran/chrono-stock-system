@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface Product {
   id: string;
@@ -43,7 +44,7 @@ export default function AdminProductsPage() {
       const token = localStorage.getItem('sxt_token');
       const params = new URLSearchParams({ page: String(currentPage), size: '10', sort: 'createdAt,desc' });
       if (search) params.set('search', search);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products?${params}`, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error();
       setPage(await res.json());
     } catch { setError('Failed to load products.'); }
@@ -55,7 +56,7 @@ export default function AdminProductsPage() {
   const handleToggleActive = async (product: Product) => {
     try {
       const token = localStorage.getItem('sxt_token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products/${product.id}/${product.active ? 'deactivate' : 'activate'}`, {
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products/${product.id}/${product.active ? 'deactivate' : 'activate'}`, {
         method: 'PATCH', headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();
@@ -65,11 +66,15 @@ export default function AdminProductsPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Archive "${name}"? This cannot be undone.`)) return;
+    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
     setDeleting(id);
     try {
       const token = localStorage.getItem('sxt_token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products/${id}`, {
+      if (!token) {
+        showToast('Please log in again.');
+        return;
+      }
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products/${id}`, {
         method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();

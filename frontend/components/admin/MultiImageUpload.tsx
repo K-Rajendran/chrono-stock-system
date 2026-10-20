@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface GalleryImage {
   id?: number;
@@ -36,7 +37,7 @@ export default function MultiImageUpload({
   const fetchGalleryImages = async () => {
     try {
       const token = localStorage.getItem('sxt_token');
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/admin/upload/gallery/${productId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -104,7 +105,7 @@ export default function MultiImageUpload({
 
       const token = localStorage.getItem('sxt_token');
 
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/admin/upload/gallery/${productId}`,
         {
           method: 'POST',
@@ -144,7 +145,7 @@ export default function MultiImageUpload({
     try {
       const token = localStorage.getItem('sxt_token');
 
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/admin/upload/gallery/${imageId}`,
         {
           method: 'DELETE',

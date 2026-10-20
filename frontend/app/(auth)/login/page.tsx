@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { saveTokens } from '@/lib/auth';
 
 const INPUT = {
   width: '100%',
@@ -40,20 +41,15 @@ export default function LoginPage() {
       if (!res.ok) throw new Error('Login failed. Please try again.');
       const data = await res.json();
 
-      console.log('Login response:', data);
-
       const accessToken = data.accessToken;
 
       // Guard: ensure we got a real token string before saving
       if (typeof accessToken !== 'string' || accessToken.split('.').length !== 3) {
-        console.error('Invalid access token:', accessToken);
         throw new Error('Invalid response from server. Please try again.');
       }
 
-      console.log('Access token received');
-      console.log('Token parts:', accessToken.split('.').length);
       const userName = data.fullName || data.email || 'User';
-      localStorage.setItem('sxt_token', accessToken);
+      saveTokens({ accessToken, refreshToken: data.refreshToken });
 
       localStorage.setItem(
         'sxt_user',

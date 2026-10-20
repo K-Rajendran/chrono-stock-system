@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import Image from 'next/image';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface ImageUploadProps {
   value?: string;
@@ -72,7 +73,7 @@ export default function ImageUpload({
 
       const token = localStorage.getItem('sxt_token');
 
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/admin/upload/image`,
         {
           method: 'POST',

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface DashboardStats {
   todayRevenue: number; netRevenuePeriod: number; goodsCostPeriod: number; grossProfitPeriod: number;
@@ -100,9 +101,9 @@ export default function AdminDashboard() {
       const base = process.env.NEXT_PUBLIC_API_URL;
 
       const [statsRes, billsRes, stockRes] = await Promise.all([
-        fetch(`${base}/api/admin/dashboard?period=${period}`, { headers }),
-        fetch(`${base}/api/admin/bills?page=0&size=5&sort=createdAt,desc`, { headers }),
-        fetch(`${base}/api/admin/inventory/low-stock`, { headers }),
+        authenticatedFetch(`${base}/api/admin/dashboard?period=${period}`, { headers }),
+        authenticatedFetch(`${base}/api/admin/bills?page=0&size=5&sort=createdAt,desc`, { headers }),
+        authenticatedFetch(`${base}/api/admin/inventory/low-stock`, { headers }),
       ]);
 
       if (!statsRes.ok) throw new Error('stats');

@@ -28,7 +28,11 @@ public class ProductCreateRequest {
     @NotNull @DecimalMin("0.01")
     private BigDecimal sellingPrice;
 
+    @NotNull
     private Product.DiscountType discountType;
+
+    @NotNull
+    @DecimalMin(value = "0.00")
     private BigDecimal discountValue;
 
     @Min(0) private Integer stockQuantity;

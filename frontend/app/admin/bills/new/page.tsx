@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface Product { id: string; name: string; sellingPrice: number; effectivePrice: number; stockQuantity: number; discountValue: number; discountType: string; primaryImageUrl?: string; }
 
@@ -63,7 +64,7 @@ export default function AdminNewBillPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('sxt_token');
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products?page=0&size=200&active=true`, {
+    authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/products?page=0&size=200&active=true`, {
       headers: { Authorization: `Bearer ${token}` },
     }).then(r => r.json()).then(d => setProducts(d.content ?? d ?? [])).catch(() => {});
   }, []);
@@ -213,7 +214,7 @@ export default function AdminNewBillPage() {
     setSubmitting(true); setError(null);
     try {
       const token = localStorage.getItem('sxt_token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills`, {
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ customerName, customerPhone, paymentMethod, transactionRef, notes,

@@ -184,6 +184,12 @@ a[style*="var(--gold-gradient)"] {
   font-weight: 400;
 }
 
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
 @media (max-width: 767px) {
   .new-arrival-grid {
     border-radius: 20px;

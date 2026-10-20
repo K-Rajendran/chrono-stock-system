@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { authenticatedFetch } from '@/lib/auth';
 
 interface BillItem {
   id: string;
@@ -68,7 +69,7 @@ export default function AdminBillDetailPage() {
     setLoading(true); setError(null);
     try {
       const token = localStorage.getItem('sxt_token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}`, {
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();
@@ -185,7 +186,7 @@ export default function AdminBillDetailPage() {
     try {
       const token = localStorage.getItem('sxt_token');
 
-      const res = await fetch(
+      const res = await authenticatedFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}`,
         {
           method: 'PUT',
@@ -237,7 +238,7 @@ export default function AdminBillDetailPage() {
     if (!bill) return;
     try {
       const token = localStorage.getItem('sxt_token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}/send-whatsapp`, {
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}/send-whatsapp`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -265,7 +266,7 @@ export default function AdminBillDetailPage() {
     if (!confirm('Cancel this bill? Inventory will be restored.')) return;
     try {
       const token = localStorage.getItem('sxt_token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}/cancel`, {
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/bills/${id}/cancel`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
