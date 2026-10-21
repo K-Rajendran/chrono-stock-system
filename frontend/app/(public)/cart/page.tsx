@@ -59,7 +59,7 @@ export default function CartPage() {
   const handlePurchaseRequest = async () => {
     const userStr = localStorage.getItem('sxt_user');
     const token = localStorage.getItem('sxt_token');
-    if (!userStr || !token) { router.push('/login'); return; }
+    if (!userStr || !token) { router.push('/register'); return; }
 
     setSubmitting(true);
     try {
